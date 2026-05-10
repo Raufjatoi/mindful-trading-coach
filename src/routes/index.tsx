@@ -43,7 +43,7 @@ function Landing() {
           <a href="#voices" className="hover:text-foreground transition">Voices</a>
         </nav>
         <Link
-          to="/dashboard"
+          to="/time"
           className="rounded-full border border-border/60 bg-card/60 px-4 py-2 text-sm backdrop-blur-xl hover:bg-card transition"
         >
           Open app
@@ -75,14 +75,14 @@ function Landing() {
           </p>
           <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
             <Link
-              to="/dashboard"
+              to="/time"
               className="group inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-3 text-sm font-medium text-background transition hover:opacity-90"
             >
               Begin your session
               <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
             </Link>
             <Link
-              to="/coach"
+              to="/chat"
               className="rounded-full border border-border bg-card/40 px-5 py-3 text-sm backdrop-blur-xl hover:bg-card transition"
             >
               Talk to the coach

@@ -9,25 +9,37 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as JournalRouteImport } from './routes/journal'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as CoachRouteImport } from './routes/coach'
+import { Route as TradeRouteImport } from './routes/trade'
+import { Route as TimeRouteImport } from './routes/time'
+import { Route as GuideRouteImport } from './routes/guide'
+import { Route as ChatRouteImport } from './routes/chat'
+import { Route as CanvasRouteImport } from './routes/canvas'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
 
-const JournalRoute = JournalRouteImport.update({
-  id: '/journal',
-  path: '/journal',
+const TradeRoute = TradeRouteImport.update({
+  id: '/trade',
+  path: '/trade',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const TimeRoute = TimeRouteImport.update({
+  id: '/time',
+  path: '/time',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CoachRoute = CoachRouteImport.update({
-  id: '/coach',
-  path: '/coach',
+const GuideRoute = GuideRouteImport.update({
+  id: '/guide',
+  path: '/guide',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CanvasRoute = CanvasRouteImport.update({
+  id: '/canvas',
+  path: '/canvas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnalyticsRoute = AnalyticsRouteImport.update({
@@ -44,62 +56,99 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
-  '/coach': typeof CoachRoute
-  '/dashboard': typeof DashboardRoute
-  '/journal': typeof JournalRoute
+  '/canvas': typeof CanvasRoute
+  '/chat': typeof ChatRoute
+  '/guide': typeof GuideRoute
+  '/time': typeof TimeRoute
+  '/trade': typeof TradeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
-  '/coach': typeof CoachRoute
-  '/dashboard': typeof DashboardRoute
-  '/journal': typeof JournalRoute
+  '/canvas': typeof CanvasRoute
+  '/chat': typeof ChatRoute
+  '/guide': typeof GuideRoute
+  '/time': typeof TimeRoute
+  '/trade': typeof TradeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
-  '/coach': typeof CoachRoute
-  '/dashboard': typeof DashboardRoute
-  '/journal': typeof JournalRoute
+  '/canvas': typeof CanvasRoute
+  '/chat': typeof ChatRoute
+  '/guide': typeof GuideRoute
+  '/time': typeof TimeRoute
+  '/trade': typeof TradeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/analytics' | '/coach' | '/dashboard' | '/journal'
+  fullPaths:
+    | '/'
+    | '/analytics'
+    | '/canvas'
+    | '/chat'
+    | '/guide'
+    | '/time'
+    | '/trade'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/analytics' | '/coach' | '/dashboard' | '/journal'
-  id: '__root__' | '/' | '/analytics' | '/coach' | '/dashboard' | '/journal'
+  to: '/' | '/analytics' | '/canvas' | '/chat' | '/guide' | '/time' | '/trade'
+  id:
+    | '__root__'
+    | '/'
+    | '/analytics'
+    | '/canvas'
+    | '/chat'
+    | '/guide'
+    | '/time'
+    | '/trade'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalyticsRoute: typeof AnalyticsRoute
-  CoachRoute: typeof CoachRoute
-  DashboardRoute: typeof DashboardRoute
-  JournalRoute: typeof JournalRoute
+  CanvasRoute: typeof CanvasRoute
+  ChatRoute: typeof ChatRoute
+  GuideRoute: typeof GuideRoute
+  TimeRoute: typeof TimeRoute
+  TradeRoute: typeof TradeRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/journal': {
-      id: '/journal'
-      path: '/journal'
-      fullPath: '/journal'
-      preLoaderRoute: typeof JournalRouteImport
+    '/trade': {
+      id: '/trade'
+      path: '/trade'
+      fullPath: '/trade'
+      preLoaderRoute: typeof TradeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
+    '/time': {
+      id: '/time'
+      path: '/time'
+      fullPath: '/time'
+      preLoaderRoute: typeof TimeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/coach': {
-      id: '/coach'
-      path: '/coach'
-      fullPath: '/coach'
-      preLoaderRoute: typeof CoachRouteImport
+    '/guide': {
+      id: '/guide'
+      path: '/guide'
+      fullPath: '/guide'
+      preLoaderRoute: typeof GuideRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/canvas': {
+      id: '/canvas'
+      path: '/canvas'
+      fullPath: '/canvas'
+      preLoaderRoute: typeof CanvasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/analytics': {
@@ -122,9 +171,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
-  CoachRoute: CoachRoute,
-  DashboardRoute: DashboardRoute,
-  JournalRoute: JournalRoute,
+  CanvasRoute: CanvasRoute,
+  ChatRoute: ChatRoute,
+  GuideRoute: GuideRoute,
+  TimeRoute: TimeRoute,
+  TradeRoute: TradeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

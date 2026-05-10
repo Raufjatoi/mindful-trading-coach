@@ -1,13 +1,15 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Sparkles, BookHeart, LineChart, X } from "lucide-react";
+import { Clock, TrendingUp, PenTool, BookOpen, MessageCircle, LineChart, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const nav = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/coach", label: "AI Coach", icon: Sparkles },
-  { to: "/journal", label: "Journal", icon: BookHeart },
-  { to: "/analytics", label: "Analytics", icon: LineChart },
+  { to: "/time",      label: "Time Finder",   icon: Clock         },
+  { to: "/trade",     label: "Trade Logger",  icon: TrendingUp    },
+  { to: "/canvas",    label: "Canvas",        icon: PenTool       },
+  { to: "/guide",     label: "Guide",         icon: BookOpen      },
+  { to: "/chat",      label: "Chat",          icon: MessageCircle },
+  { to: "/analytics", label: "Analytics",     icon: LineChart     },
 ] as const;
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {

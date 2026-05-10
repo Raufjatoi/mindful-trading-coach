@@ -8,19 +8,14 @@ import { MoodChip } from "@/components/ui/mood-chip";
 import { coachStarters, coachThread, moods, type Mood } from "@/lib/mock";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/coach")({
+export const Route = createFileRoute("/chat")({
   head: () => ({
-    meta: [
-      { title: "AI Coach — MindCandle" },
-      { name: "description", content: "A calm AI mentor for your trading psychology." },
-      { property: "og:title", content: "MindCandle AI Coach" },
-      { property: "og:description", content: "Reset, reflect, and trade aware." },
-    ],
+    meta: [{ title: "Chat — MindCandle" }],
   }),
-  component: Coach,
+  component: Chat,
 });
 
-function Coach() {
+function Chat() {
   const [thread, setThread] = useState(coachThread);
   const [input, setInput] = useState("");
   const [mood, setMood] = useState<Mood>("Calm");
@@ -49,7 +44,7 @@ function Coach() {
   };
 
   return (
-    <AppShell title="AI Coach" subtitle="A calm voice. Always present.">
+    <AppShell title="Chat" subtitle="A calm voice. Always present.">
       <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
         <MotionCard className="flex h-[70vh] min-h-[520px] flex-col p-0">
           <div className="flex items-center gap-2 border-b border-border/60 px-5 py-3.5">
