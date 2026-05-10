@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { Flame, Sparkles, BookHeart, LineChart, ArrowRight, ShieldCheck } from "lucide-react";
+import { Sparkles, BookHeart, LineChart, ArrowRight, ShieldCheck } from "lucide-react";
 import { GradientOrbs } from "@/components/layout/GradientOrbs";
 
 export const Route = createFileRoute("/")({
@@ -34,9 +34,7 @@ function Landing() {
 
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
         <Link to="/" className="flex items-center gap-2.5">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-[var(--sage)] to-[var(--blush)] text-background">
-            <Flame className="h-4 w-4" strokeWidth={2.5} />
-          </span>
+          <img src="/logo.png" alt="MindCandle" className="h-12 w-12 rounded-xl object-cover" />
           <span className="font-display text-lg font-semibold">MindCandle</span>
         </Link>
         <nav className="hidden items-center gap-7 text-sm text-muted-foreground sm:flex">
@@ -201,6 +199,10 @@ function Landing() {
 
       <footer className="border-t border-border/60 py-10">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 sm:flex-row">
+          <Link to="/" className="flex items-center gap-2.5">
+            <img src="/logo.png" alt="MindCandle" className="h-10 w-10 rounded-lg object-cover opacity-80" />
+            <span className="font-display text-sm font-semibold text-muted-foreground">MindCandle</span>
+          </Link>
           <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} MindCandle. Trade slowly.</p>
           <p className="text-xs text-muted-foreground">Not financial advice. Built for emotional growth.</p>
         </div>

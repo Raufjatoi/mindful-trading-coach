@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Sparkles, BookHeart, LineChart, Flame, X } from "lucide-react";
+import { LayoutDashboard, Sparkles, BookHeart, LineChart, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -16,9 +16,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   const content = (
     <div className="flex h-full flex-col gap-8 p-6">
       <Link to="/" className="flex items-center gap-2.5 group">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-[var(--sage)] to-[var(--blush)] text-background shadow-soft">
-          <Flame className="h-4 w-4" strokeWidth={2.5} />
-        </span>
+        <img src="/logo.png" alt="MindCandle" className="h-12 w-12 rounded-xl object-cover shadow-soft" />
         <span className="font-display text-lg font-semibold tracking-tight">MindCandle</span>
       </Link>
 
