@@ -17,7 +17,7 @@ export default defineConfig({
         },
       },
       server: {
-        preset: "vercel",
+        preset: "static",
         entry: "server",
       },
     }),
