@@ -132,6 +132,148 @@ export const currencyPairs = [
   "XAU/USD", "USD/CAD", "NZD/USD", "USD/CHF", "GBP/JPY",
 ];
 
+// ── News (used by /news) ──────────────────────────────────────────────────────
+
+export type NewsSentiment = "bullish" | "bearish" | "neutral";
+export type NewsTopic = "forex" | "stocks" | "crypto" | "macro";
+
+export type NewsItem = {
+  id: string;
+  headline: string;
+  summary: string;
+  source: string;
+  publishedAgo: string;
+  sentiment: NewsSentiment;
+  tickers: string[];
+  topic: NewsTopic;
+};
+
+export const newsItems: NewsItem[] = [
+  {
+    id: "n1",
+    headline: "Fed signals extended pause as core PCE cools for third straight month",
+    summary: "Federal Reserve officials indicated they are in no rush to adjust rates, citing sustained disinflation in core PCE. Dollar initially weakened before recovering on strong jobs data.",
+    source: "Reuters",
+    publishedAgo: "3m ago",
+    sentiment: "bullish",
+    tickers: ["USD", "EUR/USD", "XAU/USD"],
+    topic: "macro",
+  },
+  {
+    id: "n2",
+    headline: "EUR/USD breaks above 1.0850 resistance — London open momentum builds",
+    summary: "The pair cleared a key technical barrier at the London open as EUR bulls responded to better-than-expected German factory orders. Analysts watch 1.0900 as next key level.",
+    source: "FX Street",
+    publishedAgo: "11m ago",
+    sentiment: "bullish",
+    tickers: ["EUR/USD", "EUR", "USD"],
+    topic: "forex",
+  },
+  {
+    id: "n3",
+    headline: "BOJ intervention speculation rises as USD/JPY tests 155.00",
+    summary: "The yen slid to multi-decade lows against the dollar, prompting fresh warnings from Japanese finance officials. Verbal intervention failed to hold; markets watch for actual dollar selling.",
+    source: "Bloomberg",
+    publishedAgo: "28m ago",
+    sentiment: "bearish",
+    tickers: ["USD/JPY", "JPY"],
+    topic: "forex",
+  },
+  {
+    id: "n4",
+    headline: "OPEC+ considers output cut extension through Q3 as demand outlook dims",
+    summary: "Cartel members are discussing extending voluntary cuts into the third quarter, citing weaker global growth forecasts. Brent crude rose 1.4% on the news while CAD strengthened.",
+    source: "S&P Global",
+    publishedAgo: "45m ago",
+    sentiment: "bullish",
+    tickers: ["OIL", "USD/CAD", "CAD"],
+    topic: "macro",
+  },
+  {
+    id: "n5",
+    headline: "GBP slips after UK services PMI misses expectations at 50.8",
+    summary: "Sterling fell across the board after the UK services sector barely stayed in expansion territory. GBP/USD tested 1.2650 support while EUR/GBP bounced sharply from recent lows.",
+    source: "Investing.com",
+    publishedAgo: "1h ago",
+    sentiment: "bearish",
+    tickers: ["GBP/USD", "EUR/GBP", "GBP"],
+    topic: "forex",
+  },
+  {
+    id: "n6",
+    headline: "Gold consolidates near $2,340 after CPI-driven rally; eyes $2,400",
+    summary: "XAU/USD is holding the bulk of its recent gains amid a softer dollar and elevated geopolitical uncertainty. Technical traders note a bullish flag formation on the daily chart.",
+    source: "Kitco",
+    publishedAgo: "1h 20m ago",
+    sentiment: "bullish",
+    tickers: ["XAU/USD", "Gold", "USD"],
+    topic: "forex",
+  },
+  {
+    id: "n7",
+    headline: "BTC breaks $68,000 as ETF inflows hit record $890M in a single day",
+    summary: "Bitcoin surged past the $68,000 mark on the back of massive ETF demand, with spot BTC ETFs recording a single-day inflow record. Altcoins followed with ETH gaining 4.2%.",
+    source: "CoinDesk",
+    publishedAgo: "2h ago",
+    sentiment: "bullish",
+    tickers: ["BTC/USD", "ETH/USD"],
+    topic: "crypto",
+  },
+  {
+    id: "n8",
+    headline: "Nasdaq slides 1.2% as rate-sensitive tech stocks reprice on hawkish Fedspeak",
+    summary: "Growth stocks sold off as two Fed governors pushed back against early rate-cut expectations. Apple and Nvidia each fell over 2% while the Nasdaq composite lost 1.2% intraday.",
+    source: "CNBC",
+    publishedAgo: "2h 30m ago",
+    sentiment: "bearish",
+    tickers: ["NASDAQ", "AAPL", "NVDA"],
+    topic: "stocks",
+  },
+  {
+    id: "n9",
+    headline: "AUD/USD range-bound ahead of RBA minutes; key support holds at 0.6550",
+    summary: "The Aussie dollar remains in a tight consolidation range as traders await the RBA's May meeting minutes for clues on the rate path. A break below 0.6550 could accelerate losses toward 0.6490.",
+    source: "DailyFX",
+    publishedAgo: "3h ago",
+    sentiment: "neutral",
+    tickers: ["AUD/USD", "AUD"],
+    topic: "forex",
+  },
+  {
+    id: "n10",
+    headline: "China GDP beats at 5.3% YoY — AUD, NZD, and copper surge on risk-on flows",
+    summary: "Stronger-than-expected Chinese growth data boosted commodity-linked currencies and global risk assets. AUD and NZD led gains in the G10 space while USD weakened broadly.",
+    source: "Reuters",
+    publishedAgo: "4h ago",
+    sentiment: "bullish",
+    tickers: ["AUD/USD", "NZD/USD", "CNY"],
+    topic: "macro",
+  },
+];
+
+export const aiNewsInsights = [
+  {
+    title: "USD momentum fading",
+    detail: "USD appears in 6 of 10 stories but tone shifted — 4 bearish vs 2 bullish. Watch for reversal setups on USD pairs.",
+    impact: "bearish" as NewsSentiment,
+  },
+  {
+    title: "EUR showing strength",
+    detail: "Three EUR-positive stories in the last 90 minutes, led by German data beats. EUR/USD break above 1.0850 adds technical confirmation.",
+    impact: "bullish" as NewsSentiment,
+  },
+  {
+    title: "JPY intervention risk elevated",
+    detail: "BOJ verbal intervention typically precedes actual market action. USD/JPY longs carry elevated risk above 155.00.",
+    impact: "bearish" as NewsSentiment,
+  },
+  {
+    title: "Gold bull flag forming",
+    detail: "Consolidation near highs combined with macro tailwinds (soft USD, geopolitical risk) suggests continuation. Bias: buy dips.",
+    impact: "bullish" as NewsSentiment,
+  },
+];
+
 // ── Guide (used by /dashboard Tab 4) ─────────────────────────────────────────
 export type Indicator = {
   id: string;

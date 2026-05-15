@@ -1,15 +1,16 @@
 import { useRef, useState, useCallback } from "react";
-import { Pen, ArrowRight, Square, Type, Undo2, Trash2, Download, Upload } from "lucide-react";
+import { Pen, ArrowRight, Square, Type, Undo2, Trash2, Download, Upload, Eraser } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MotionCard } from "./motion-card";
 
-type Tool = "pen" | "arrow" | "rect" | "text";
+type Tool = "pen" | "eraser" | "arrow" | "rect" | "text";
 const COLORS = ["#4ade80", "#f87171", "#ffffff", "#facc15", "#60a5fa", "#f472b6"];
 const TOOLS: { id: Tool; Icon: typeof Pen; label: string }[] = [
-  { id: "pen",   Icon: Pen,        label: "Pen"       },
-  { id: "arrow", Icon: ArrowRight, label: "Arrow"     },
-  { id: "rect",  Icon: Square,     label: "Rectangle" },
-  { id: "text",  Icon: Type,       label: "Text"      },
+  { id: "pen",    Icon: Pen,        label: "Pen"       },
+  { id: "eraser", Icon: Eraser,     label: "Eraser"    },
+  { id: "arrow",  Icon: ArrowRight, label: "Arrow"     },
+  { id: "rect",   Icon: Square,     label: "Rectangle" },
+  { id: "text",   Icon: Type,       label: "Text"      },
 ];
 
 function drawArrowHead(
@@ -29,13 +30,14 @@ function drawArrowHead(
 }
 
 function getCanvasPos(
-  e: React.MouseEvent<HTMLCanvasElement>,
+  clientX: number,
+  clientY: number,
   canvas: HTMLCanvasElement,
 ) {
   const rect = canvas.getBoundingClientRect();
   return {
-    x: (e.clientX - rect.left) * (canvas.width / rect.width),
-    y: (e.clientY - rect.top) * (canvas.height / rect.height),
+    x: (clientX - rect.left) * (canvas.width / rect.width),
+    y: (clientY - rect.top)  * (canvas.height / rect.height),
   };
 }
 
@@ -46,10 +48,11 @@ export function CanvasBoard() {
   const [brushSize, setBrushSize] = useState(3);
   const [hasImage, setHasImage]   = useState(false);
   const [drawing, setDrawing]     = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
 
-  const startPos    = useRef({ x: 0, y: 0 });
-  const undoStack   = useRef<ImageData[]>([]);
-  const snapshot    = useRef<ImageData | null>(null);
+  const startPos  = useRef({ x: 0, y: 0 });
+  const undoStack = useRef<ImageData[]>([]);
+  const snapshot  = useRef<ImageData | null>(null);
 
   const saveUndo = useCallback(() => {
     const c = canvasRef.current;
@@ -102,23 +105,33 @@ export function CanvasBoard() {
   };
 
   const applyStyle = (ctx: CanvasRenderingContext2D) => {
-    ctx.strokeStyle = color;
-    ctx.fillStyle   = color;
-    ctx.lineWidth   = brushSize;
-    ctx.lineCap     = "round";
-    ctx.lineJoin    = "round";
+    if (tool === "eraser") {
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.strokeStyle = "rgba(0,0,0,1)";
+      ctx.lineWidth   = brushSize * 4;
+    } else {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = color;
+      ctx.fillStyle   = color;
+      ctx.lineWidth   = brushSize;
+    }
+    ctx.lineCap  = "round";
+    ctx.lineJoin = "round";
   };
 
-  const onMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // ── Shared start / move / end logic ──────────────────────────────────────────
+
+  const startDraw = (clientX: number, clientY: number) => {
     const c = canvasRef.current;
     if (!c) return;
-    const pos = getCanvasPos(e, c);
+    const pos = getCanvasPos(clientX, clientY, c);
     const ctx = c.getContext("2d")!;
 
     if (tool === "text") {
       const text = window.prompt("Enter annotation text:");
       if (!text) return;
-      applyStyle(ctx);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = color;
       ctx.font = `${brushSize * 5 + 12}px "Sora", sans-serif`;
       ctx.fillText(text, pos.x, pos.y);
       return;
@@ -129,23 +142,23 @@ export function CanvasBoard() {
     snapshot.current = ctx.getImageData(0, 0, c.width, c.height);
     setDrawing(true);
 
-    if (tool === "pen") {
+    if (tool === "pen" || tool === "eraser") {
       applyStyle(ctx);
       ctx.beginPath();
       ctx.moveTo(pos.x, pos.y);
     }
   };
 
-  const onMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const continueDraw = (clientX: number, clientY: number) => {
     if (!drawing) return;
     const c = canvasRef.current;
     if (!c) return;
     const ctx = c.getContext("2d")!;
-    const pos = getCanvasPos(e, c);
+    const pos = getCanvasPos(clientX, clientY, c);
 
     applyStyle(ctx);
 
-    if (tool === "pen") {
+    if (tool === "pen" || tool === "eraser") {
       ctx.lineTo(pos.x, pos.y);
       ctx.stroke();
     } else {
@@ -162,7 +175,59 @@ export function CanvasBoard() {
     }
   };
 
-  const onMouseUp = () => setDrawing(false);
+  const endDraw = () => {
+    const c = canvasRef.current;
+    if (c) c.getContext("2d")!.globalCompositeOperation = "source-over";
+    setDrawing(false);
+  };
+
+  // ── Mouse handlers ────────────────────────────────────────────────────────────
+
+  const onMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) =>
+    startDraw(e.clientX, e.clientY);
+
+  const onMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) =>
+    continueDraw(e.clientX, e.clientY);
+
+  // ── Touch handlers ────────────────────────────────────────────────────────────
+
+  const onTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    startDraw(t.clientX, t.clientY);
+  };
+
+  const onTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    continueDraw(t.clientX, t.clientY);
+  };
+
+  const onTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    endDraw();
+  };
+
+  // ── Drag-and-drop ─────────────────────────────────────────────────────────────
+
+  const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const onDragLeave = () => setIsDragOver(false);
+
+  const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith("image/")) loadImage(file);
+  };
+
+  const cursorStyle =
+    tool === "text"   ? "text"
+    : tool === "eraser" ? "cell"
+    : "crosshair";
 
   return (
     <div className="space-y-4">
@@ -194,10 +259,10 @@ export function CanvasBoard() {
           {COLORS.map((c) => (
             <button
               key={c}
-              onClick={() => setColor(c)}
+              onClick={() => { setColor(c); if (tool === "eraser") setTool("pen"); }}
               className={cn(
                 "h-5 w-5 rounded-full border-2 transition",
-                color === c ? "border-foreground scale-110" : "border-transparent",
+                color === c && tool !== "eraser" ? "border-foreground scale-110" : "border-transparent",
               )}
               style={{ background: c }}
             />
@@ -208,7 +273,9 @@ export function CanvasBoard() {
 
         {/* Brush size */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Size {brushSize}</span>
+          <span className="text-xs text-muted-foreground">
+            {tool === "eraser" ? `Eraser ${brushSize * 4}` : `Size ${brushSize}`}
+          </span>
           <input
             type="range" min={1} max={14} value={brushSize}
             onChange={(e) => setBrushSize(Number(e.target.value))}
@@ -242,14 +309,20 @@ export function CanvasBoard() {
       <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
         {/* Canvas area */}
         <div
-          className="relative overflow-hidden rounded-2xl border border-border/60 bg-card/40"
+          className={cn(
+            "relative overflow-hidden rounded-2xl border bg-card/40 transition-colors",
+            isDragOver ? "border-[var(--sage)] bg-[color-mix(in_oklab,var(--sage)_8%,transparent)]" : "border-border/60",
+          )}
           style={{ minHeight: 480 }}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
         >
           {!hasImage && (
             <label className="absolute inset-0 z-10 flex cursor-pointer flex-col items-center justify-center gap-3 text-muted-foreground transition hover:text-foreground">
               <Upload className="h-10 w-10" />
               <p className="font-display text-base font-medium">Upload a chart image</p>
-              <p className="text-xs">Click or drag & drop · PNG / JPG</p>
+              <p className="text-xs">Click or drag &amp; drop · PNG / JPG</p>
               <input
                 type="file"
                 accept="image/*"
@@ -262,12 +335,15 @@ export function CanvasBoard() {
             ref={canvasRef}
             width={800}
             height={500}
-            className="h-full w-full object-contain"
-            style={{ cursor: tool === "text" ? "text" : "crosshair" }}
+            className="h-full w-full object-contain touch-none"
+            style={{ cursor: cursorStyle }}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
-            onMouseUp={onMouseUp}
-            onMouseLeave={onMouseUp}
+            onMouseUp={endDraw}
+            onMouseLeave={endDraw}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
           />
         </div>
 
@@ -275,9 +351,9 @@ export function CanvasBoard() {
         <MotionCard className="flex flex-col gap-4">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">Analysis Notes</p>
           {[
-            { label: "What pattern do you see?",       placeholder: "Head & shoulders, double top…"     },
+            { label: "What pattern do you see?",       placeholder: "Head & shoulders, double top…"      },
             { label: "Why did you win / lose?",         placeholder: "Entered too early, no confirmation…" },
-            { label: "What would you do differently?", placeholder: "Wait for the retest, tighten SL…"  },
+            { label: "What would you do differently?", placeholder: "Wait for the retest, tighten SL…"   },
           ].map(({ label, placeholder }) => (
             <div key={label}>
               <p className="mb-1.5 text-[11px] text-muted-foreground">{label}</p>

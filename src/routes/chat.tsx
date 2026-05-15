@@ -6,6 +6,8 @@ import { AppShell } from "@/components/layout/AppShell";
 import { MotionCard } from "@/components/ui/motion-card";
 import { MoodChip } from "@/components/ui/mood-chip";
 import { coachStarters, coachThread, moods, type Mood } from "@/lib/mock";
+import { askMentor, type ChatMessage } from "@/lib/gemma";
+
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/chat")({
@@ -16,7 +18,9 @@ export const Route = createFileRoute("/chat")({
 });
 
 function Chat() {
-  const [thread, setThread] = useState(coachThread);
+  const [thread, setThread] = useState<ChatMessage[]>(
+    coachThread.map((m) => ({ role: m.role, text: m.text })),
+  );
   const [input, setInput] = useState("");
   const [mood, setMood] = useState<Mood>("Calm");
   const [typing, setTyping] = useState(false);
@@ -26,21 +30,26 @@ function Chat() {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [thread, typing]);
 
-  const send = (text: string) => {
-    if (!text.trim()) return;
-    setThread((t) => [...t, { role: "user", text }]);
+  const send = async (text: string) => {
+    if (!text.trim() || typing) return;
+    const updatedThread: ChatMessage[] = [...thread, { role: "user", text }];
+    setThread(updatedThread);
     setInput("");
     setTyping(true);
-    setTimeout(() => {
-      setTyping(false);
+    try {
+      const reply = await askMentor(updatedThread, mood);
+      setThread((t) => [...t, { role: "assistant", text: reply }]);
+    } catch {
       setThread((t) => [
         ...t,
         {
           role: "assistant",
-          text: "Notice the urge — and breathe through it. The market will still be here in five minutes. What would the disciplined version of you do right now?",
+          text: "Take a breath. I'm having a little trouble connecting right now — try again in a moment.",
         },
       ]);
-    }, 1200);
+    } finally {
+      setTyping(false);
+    }
   };
 
   return (
@@ -146,15 +155,6 @@ function Chat() {
                 </motion.button>
               ))}
             </div>
-          </MotionCard>
-          <MotionCard>
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Today's anchor</p>
-            <p className="mt-2 font-display text-base leading-relaxed">
-              "I trade the plan, not the feeling."
-            </p>
-            <p className="mt-3 text-xs text-muted-foreground">
-              Re-read this when the urge to deviate appears.
-            </p>
           </MotionCard>
         </div>
       </div>

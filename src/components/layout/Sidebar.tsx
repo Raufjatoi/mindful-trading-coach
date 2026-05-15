@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Clock, TrendingUp, PenTool, BookOpen, MessageCircle, LineChart, X } from "lucide-react";
+import { Clock, TrendingUp, PenTool, BookOpen, MessageCircle, LineChart, Newspaper, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ const nav = [
   { to: "/guide",     label: "Guide",         icon: BookOpen      },
   { to: "/chat",      label: "Chat",          icon: MessageCircle },
   { to: "/analytics", label: "Analytics",     icon: LineChart     },
+  { to: "/news",      label: "News",          icon: Newspaper     },
 ] as const;
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {

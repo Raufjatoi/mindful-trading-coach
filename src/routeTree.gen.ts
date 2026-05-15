@@ -11,9 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TradeRouteImport } from './routes/trade'
 import { Route as TimeRouteImport } from './routes/time'
+import { Route as NewsRouteImport } from './routes/news'
 import { Route as GuideRouteImport } from './routes/guide'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as CanvasRouteImport } from './routes/canvas'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -25,6 +27,11 @@ const TradeRoute = TradeRouteImport.update({
 const TimeRoute = TimeRouteImport.update({
   id: '/time',
   path: '/time',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NewsRoute = NewsRouteImport.update({
+  id: '/news',
+  path: '/news',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GuideRoute = GuideRouteImport.update({
@@ -42,6 +49,11 @@ const CanvasRoute = CanvasRouteImport.update({
   path: '/canvas',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AnalyticsRoute = AnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
@@ -56,18 +68,22 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
+  '/auth': typeof AuthRoute
   '/canvas': typeof CanvasRoute
   '/chat': typeof ChatRoute
   '/guide': typeof GuideRoute
+  '/news': typeof NewsRoute
   '/time': typeof TimeRoute
   '/trade': typeof TradeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
+  '/auth': typeof AuthRoute
   '/canvas': typeof CanvasRoute
   '/chat': typeof ChatRoute
   '/guide': typeof GuideRoute
+  '/news': typeof NewsRoute
   '/time': typeof TimeRoute
   '/trade': typeof TradeRoute
 }
@@ -75,9 +91,11 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
+  '/auth': typeof AuthRoute
   '/canvas': typeof CanvasRoute
   '/chat': typeof ChatRoute
   '/guide': typeof GuideRoute
+  '/news': typeof NewsRoute
   '/time': typeof TimeRoute
   '/trade': typeof TradeRoute
 }
@@ -86,20 +104,33 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/analytics'
+    | '/auth'
     | '/canvas'
     | '/chat'
     | '/guide'
+    | '/news'
     | '/time'
     | '/trade'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/analytics' | '/canvas' | '/chat' | '/guide' | '/time' | '/trade'
+  to:
+    | '/'
+    | '/analytics'
+    | '/auth'
+    | '/canvas'
+    | '/chat'
+    | '/guide'
+    | '/news'
+    | '/time'
+    | '/trade'
   id:
     | '__root__'
     | '/'
     | '/analytics'
+    | '/auth'
     | '/canvas'
     | '/chat'
     | '/guide'
+    | '/news'
     | '/time'
     | '/trade'
   fileRoutesById: FileRoutesById
@@ -107,9 +138,11 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalyticsRoute: typeof AnalyticsRoute
+  AuthRoute: typeof AuthRoute
   CanvasRoute: typeof CanvasRoute
   ChatRoute: typeof ChatRoute
   GuideRoute: typeof GuideRoute
+  NewsRoute: typeof NewsRoute
   TimeRoute: typeof TimeRoute
   TradeRoute: typeof TradeRoute
 }
@@ -128,6 +161,13 @@ declare module '@tanstack/react-router' {
       path: '/time'
       fullPath: '/time'
       preLoaderRoute: typeof TimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/news': {
+      id: '/news'
+      path: '/news'
+      fullPath: '/news'
+      preLoaderRoute: typeof NewsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/guide': {
@@ -151,6 +191,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CanvasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/analytics': {
       id: '/analytics'
       path: '/analytics'
@@ -171,9 +218,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
+  AuthRoute: AuthRoute,
   CanvasRoute: CanvasRoute,
   ChatRoute: ChatRoute,
   GuideRoute: GuideRoute,
+  NewsRoute: NewsRoute,
   TimeRoute: TimeRoute,
   TradeRoute: TradeRoute,
 }

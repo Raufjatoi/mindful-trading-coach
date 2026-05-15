@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -9,7 +9,10 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { initialTradeLog, currencyPairs, type TradeEntry } from "@/lib/mock";
+import { currencyPairs, type TradeEntry } from "@/lib/mock";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/auth";
+import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/trade")({
   head: () => ({
@@ -21,6 +24,7 @@ export const Route = createFileRoute("/trade")({
 type ActiveStrategy = { pair: string; start: string; end: string; max: number; amount: number; risk: number };
 
 function TradeLogger() {
+  const { user } = useAuth();
   const [pair,      setPair]   = useState("EUR/USD");
   const [startTime, setStart]  = useState("09:00");
   const [endTime,   setEnd]    = useState("17:00");
@@ -28,8 +32,34 @@ function TradeLogger() {
   const [amount,    setAmount] = useState(50);
   const [riskPct,   setRisk]   = useState(2);
   const [strategy,  setStrat]  = useState<ActiveStrategy | null>(null);
-  const [log,       setLog]    = useState<TradeEntry[]>(initialTradeLog);
+  const [log,       setLog]    = useState<TradeEntry[]>([]);
   const idRef = useRef(100);
+
+  // Load this user's trades for today from Supabase
+  useEffect(() => {
+    if (!supabase || !user) return;
+    const today = new Date().toISOString().split("T")[0];
+    supabase
+      .from("trades")
+      .select("*")
+      .eq("user_id", user.id)
+      .gte("created_at", `${today}T00:00:00Z`)
+      .order("created_at", { ascending: true })
+      .then(({ data }) => {
+        if (data) {
+          setLog(
+            data.map((t) => ({
+              id: t.id,
+              time: t.time,
+              pair: t.pair,
+              result: t.result as "win" | "loss",
+              amount: t.amount,
+              pnl: t.pnl,
+            })),
+          );
+        }
+      });
+  }, [user]);
 
   const dollarRisk = (amount * riskPct) / 100;
   const active     = strategy !== null;
@@ -43,12 +73,25 @@ function TradeLogger() {
     setLog([]);
   }
 
-  function logTrade(result: "win" | "loss") {
+  async function logTrade(result: "win" | "loss") {
     if (!active || limitHit) return;
     const now  = new Date();
     const time = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
     const pnl  = result === "win" ? +(amount * 1.9).toFixed(2) : -amount;
-    setLog((prev) => [...prev, { id: idRef.current++, time, pair: strategy!.pair, result, amount, pnl }]);
+    const entry: TradeEntry = { id: idRef.current++, time, pair: strategy!.pair, result, amount, pnl };
+
+    setLog((prev) => [...prev, entry]);
+
+    if (supabase && user) {
+      await supabase.from("trades").insert({
+        user_id: user.id,
+        time: entry.time,
+        pair: entry.pair,
+        result: entry.result,
+        amount: entry.amount,
+        pnl: entry.pnl,
+      });
+    }
   }
 
   return (
@@ -148,6 +191,26 @@ function TradeLogger() {
 
         {!active && (
           <p className="text-center text-xs text-muted-foreground">Set your strategy above to enable trade logging.</p>
+        )}
+
+        {/* Guest nudge — shown only when not logged in */}
+        {!user && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/40 px-4 py-3 text-sm"
+          >
+            <p className="text-muted-foreground">
+              <span className="text-foreground font-medium">You're in guest mode.</span>{" "}
+              Sign in to save your trades across sessions.
+            </p>
+            <Link
+              to="/auth"
+              className="shrink-0 rounded-xl bg-foreground px-3 py-1.5 text-xs font-semibold text-background transition hover:opacity-90"
+            >
+              Sign In
+            </Link>
+          </motion.div>
         )}
 
         {/* Log table */}
