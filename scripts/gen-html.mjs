@@ -1,17 +1,12 @@
-import { readdirSync, writeFileSync, readFileSync } from "fs";
+import { readdirSync, writeFileSync } from "fs";
 
-const assets = readdirSync("dist/client/assets");
+const assets = readdirSync("dist/assets");
 
-const js = assets.find(
-  (f) =>
-    /^index-.*\.js$/.test(f) &&
-    readFileSync(`dist/client/assets/${f}`, "utf8").includes("__vite__mapDeps"),
-);
-
-const css = assets.find((f) => /\.css$/.test(f));
+const js  = assets.find((f) => /^main-.*\.js$/.test(f));
+const css = assets.find((f) => /^main-.*\.css$/.test(f));
 
 if (!js) {
-  console.error("Could not find main entry JS in dist/client/assets/");
+  console.error("Could not find main-*.js in dist/assets/");
   process.exit(1);
 }
 
@@ -35,7 +30,7 @@ const html = `<!DOCTYPE html>
   </body>
 </html>`;
 
-writeFileSync("dist/client/index.html", html);
-console.log(`✓ Generated dist/client/index.html`);
+writeFileSync("dist/index.html", html);
+console.log(`✓ Generated dist/index.html`);
 console.log(`  js:  assets/${js}`);
 console.log(`  css: assets/${css ?? "(none)"}`);
