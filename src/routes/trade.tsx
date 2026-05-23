@@ -31,25 +31,60 @@ type ActiveStrategy = {
   riskPct: number;
   payoutPct: number;
   currency: string;
-  duration: string;
 };
 
 function TradeLogger() {
   const { user } = useAuth();
-  const [pair,        setPair]        = useState("EUR/USD");
-  const [customPair,  setCustomPair]  = useState("");
-  const [startTime,   setStart]       = useState("09:00");
-  const [endTime,     setEnd]         = useState("17:00");
-  const [maxTrades,   setMax]         = useState(2);
-  const [amount,      setAmount]      = useState(50);
-  const [riskPct,     setRisk]        = useState(100); // Risk per trade default 100%
-  const [payoutPct,   setPayoutPct]   = useState(85);  // Benefit payout default 85%
-  const [currency,    setCurrency]    = useState("$"); // Default currency selector
-  const [duration,    setDuration]    = useState("1 min");
-  const [strategy,    setStrat]       = useState<ActiveStrategy | null>(null);
+  
+  // Safe SSR initializers from localStorage
+  const [pair,        setPair]        = useState(() => (typeof window !== "undefined" && localStorage.getItem("mtc_pair")) || "EUR/USD");
+  const [customPair,  setCustomPair]  = useState(() => (typeof window !== "undefined" && localStorage.getItem("mtc_customPair")) || "");
+  const [startTime,   setStart]       = useState(() => (typeof window !== "undefined" && localStorage.getItem("mtc_startTime")) || "09:00");
+  const [endTime,     setEnd]         = useState(() => (typeof window !== "undefined" && localStorage.getItem("mtc_endTime")) || "17:00");
+  const [maxTrades,   setMax]         = useState(() => (typeof window !== "undefined" && Number(localStorage.getItem("mtc_maxTrades") || "2")) || 2);
+  const [amount,      setAmount]      = useState(() => (typeof window !== "undefined" && Number(localStorage.getItem("mtc_amount") || "50")) || 50);
+  const [riskPct,     setRisk]        = useState(() => (typeof window !== "undefined" && Number(localStorage.getItem("mtc_riskPct") || "100")) || 100);
+  const [payoutPct,   setPayoutPct]   = useState(() => (typeof window !== "undefined" && Number(localStorage.getItem("mtc_payoutPct") || "85")) || 85);
+  const [currency,    setCurrency]    = useState(() => (typeof window !== "undefined" && localStorage.getItem("mtc_currency")) || "$");
+  const [strategy,    setStrat]       = useState<ActiveStrategy | null>(() => {
+    if (typeof window === "undefined") return null;
+    const saved = localStorage.getItem("mtc_strategy");
+    return saved ? JSON.parse(saved) : null;
+  });
   const [log,         setLog]         = useState<TradeEntry[]>([]);
   const [range,       setRange]       = useState("today");
   const idRef = useRef(100);
+
+  // Dynamic overrides and Strategy Templates states
+  const [nextTradeDuration, setNextTradeDuration] = useState(() => (typeof window !== "undefined" && localStorage.getItem("mtc_nextTradeDuration")) || "1 min");
+  const [showNaming, setShowNaming] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState("");
+  const [savedStrats, setSavedStrats] = useState<any[]>(() => {
+    if (typeof window === "undefined") return [];
+    const saved = localStorage.getItem("mtc_templates");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [confirmClearLogs, setConfirmClearLogs] = useState(false);
+  const [clearingLogs, setClearingLogs] = useState(false);
+
+  async function executeClearLogs() {
+    if (!supabase || !user) return;
+    setClearingLogs(true);
+    try {
+      const { error } = await supabase
+        .from("trades")
+        .delete()
+        .eq("user_id", user.id);
+      
+      if (error) throw error;
+      setLog([]);
+    } catch (err) {
+      console.error("Failed to clear trades logs:", err);
+    } finally {
+      setClearingLogs(false);
+      setConfirmClearLogs(false);
+    }
+  }
 
   const rangeTitles: Record<string, string> = {
     today: "Today's Log",
@@ -58,6 +93,79 @@ function TradeLogger() {
     "1month": "1 Month Log",
     all: "All-Time Log",
   };
+
+  // Persist nextTradeDuration
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("mtc_nextTradeDuration", nextTradeDuration);
+  }, [nextTradeDuration]);
+
+  // Persist session configuration inputs to localStorage (SSR-safe)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("mtc_pair", pair);
+    localStorage.setItem("mtc_customPair", customPair);
+    localStorage.setItem("mtc_startTime", startTime);
+    localStorage.setItem("mtc_endTime", endTime);
+    localStorage.setItem("mtc_maxTrades", String(maxTrades));
+    localStorage.setItem("mtc_amount", String(amount));
+    localStorage.setItem("mtc_riskPct", String(riskPct));
+    localStorage.setItem("mtc_payoutPct", String(payoutPct));
+    localStorage.setItem("mtc_currency", currency);
+  }, [pair, customPair, startTime, endTime, maxTrades, amount, riskPct, payoutPct, currency]);
+
+  // Persist strategy state to localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (strategy) {
+      localStorage.setItem("mtc_strategy", JSON.stringify(strategy));
+    } else {
+      localStorage.removeItem("mtc_strategy");
+    }
+  }, [strategy]);
+
+  // Strategy Template helpers
+  function handleSaveTemplateClick() {
+    setShowNaming(true);
+  }
+
+  function executeSaveTemplate() {
+    if (!newTemplateName.trim()) return;
+    const newTemplate = {
+      templateName: newTemplateName.trim(),
+      pair,
+      customPair,
+      startTime,
+      endTime,
+      maxTrades,
+      amount,
+      riskPct,
+      payoutPct,
+      currency,
+    };
+    const updated = [...savedStrats, newTemplate];
+    setSavedStrats(updated);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("mtc_templates", JSON.stringify(updated));
+    }
+    setNewTemplateName("");
+    setShowNaming(false);
+  }
+
+  function handleLoadTemplate(indexStr: string) {
+    const idx = Number(indexStr);
+    const t = savedStrats[idx];
+    if (!t) return;
+    setPair(t.pair);
+    setCustomPair(t.customPair || "");
+    setStart(t.startTime);
+    setEnd(t.endTime);
+    setMax(t.maxTrades);
+    setAmount(t.amount);
+    setRisk(t.riskPct);
+    setPayoutPct(t.payoutPct);
+    setCurrency(t.currency);
+  }
 
   // Load this user's trades for today or selected range from Supabase
   useEffect(() => {
@@ -113,8 +221,7 @@ function TradeLogger() {
       strategy.amount !== amount ||
       strategy.riskPct !== riskPct ||
       strategy.payoutPct !== payoutPct ||
-      strategy.currency !== currency ||
-      strategy.duration !== duration
+      strategy.currency !== currency
     ) {
       setStrat({
         pair: resolvedPair,
@@ -125,10 +232,9 @@ function TradeLogger() {
         riskPct,
         payoutPct,
         currency,
-        duration,
       });
     }
-  }, [pair, customPair, startTime, endTime, maxTrades, amount, riskPct, payoutPct, currency, duration, strategy]);
+  }, [pair, customPair, startTime, endTime, maxTrades, amount, riskPct, payoutPct, currency, strategy]);
 
   // Helper to format money amounts based on the current currency symbol
   function formatMoney(amount: number, symbol: string) {
@@ -143,6 +249,7 @@ function TradeLogger() {
   const limitHit   = active && log.length >= strategy.max;
   const wins       = log.filter((t) => t.result === "win").length;
   const losses     = log.filter((t) => t.result === "loss").length;
+  const draws      = log.filter((t) => t.result === "draw").length;
   const totalPnl   = log.reduce((s, t) => s + t.pnl, 0);
 
   function handleSet() {
@@ -156,7 +263,6 @@ function TradeLogger() {
       riskPct,
       payoutPct,
       currency,
-      duration,
     });
     setRange("today");
     setLog([]);
@@ -167,18 +273,21 @@ function TradeLogger() {
     setLog([]);
   }
 
-  async function logTrade(result: "win" | "loss") {
+  async function logTrade(result: "win" | "loss" | "draw") {
     if (!active || limitHit) return;
     const now  = new Date();
     const time = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
     
     // Win PnL calculates based on the payoutPct percentage of trade amount
     // Loss PnL calculates based on the riskPct percentage of trade amount
+    // Draw PnL is exactly 0
     const payoutMultiplier = strategy!.payoutPct / 100;
     const riskMultiplier = strategy!.riskPct / 100;
     const pnl = result === "win"
       ? +(strategy!.amount * payoutMultiplier).toFixed(2)
-      : -+(strategy!.amount * riskMultiplier).toFixed(2);
+      : result === "loss"
+      ? -+(strategy!.amount * riskMultiplier).toFixed(2)
+      : 0;
 
     const entry: TradeEntry = {
       id: idRef.current++,
@@ -187,7 +296,7 @@ function TradeLogger() {
       result,
       amount: strategy!.amount,
       pnl,
-      duration: strategy!.duration,
+      duration: nextTradeDuration,
     };
 
     setLog((prev) => [...prev, entry]);
@@ -210,18 +319,81 @@ function TradeLogger() {
       <div className="space-y-5">
         {/* Strategy setup */}
         <MotionCard>
-          <div className="flex items-center justify-between">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Session Configuration</p>
-            {active && (
-              <div className="flex items-center gap-1.5 rounded-full bg-[var(--sage)]/10 px-2.5 py-0.5 text-xs font-semibold text-[var(--sage)]">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--sage)] opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--sage)]"></span>
-                </span>
-                <span>Live Sync Active</span>
-              </div>
-            )}
+          {/* Strategy Templates Manager */}
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4 border-b border-border/40 pb-3">
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Session Configuration</p>
+              {active && (
+                <div className="flex items-center gap-1 rounded-full bg-[var(--sage)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--sage)]">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--sage)] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[var(--sage)]"></span>
+                  </span>
+                  <span>Live</span>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-2">
+              {savedStrats.length > 0 && (
+                <Select onValueChange={handleLoadTemplate}>
+                  <SelectTrigger className="h-7 text-[10px] w-[130px] bg-muted/40 border-border/80"><SelectValue placeholder="Load Strategy..." /></SelectTrigger>
+                  <SelectContent>
+                    {savedStrats.map((s, idx) => (
+                      <SelectItem key={idx} value={String(idx)}>{s.templateName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <button
+                type="button"
+                onClick={handleSaveTemplateClick}
+                className="px-2.5 py-1 border border-border hover:bg-muted text-[10px] font-semibold rounded-lg transition cursor-pointer"
+              >
+                Save as Template
+              </button>
+            </div>
           </div>
+
+          <AnimatePresence>
+            {showNaming && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-4 p-3 rounded-xl border border-[var(--sage)]/30 bg-[var(--sage)]/[0.02] overflow-hidden"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+                  <div className="flex-1">
+                    <label className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Template Name</label>
+                    <Input
+                      placeholder="e.g. Scalp EUR/USD 30s"
+                      value={newTemplateName}
+                      onChange={(e) => setNewTemplateName(e.target.value)}
+                      className="h-8 text-xs mt-1"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={executeSaveTemplate}
+                      className="px-3.5 py-1.5 bg-[var(--sage)] hover:opacity-90 text-white text-xs font-semibold rounded-lg transition cursor-pointer"
+                    >
+                      Save Template
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowNaming(false); setNewTemplateName(""); }}
+                      className="px-3.5 py-1.5 bg-muted text-muted-foreground hover:text-foreground text-xs font-semibold rounded-lg transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label className="text-xs text-muted-foreground font-medium">Asset / Pair</label>
@@ -253,21 +425,6 @@ function TradeLogger() {
                     <SelectLabel>Other</SelectLabel>
                     <SelectItem value="CUSTOM">Custom Pair...</SelectItem>
                   </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <label className="text-xs text-muted-foreground font-medium">Trade Duration</label>
-              <Select value={duration} onValueChange={setDuration}>
-                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="15 sec">15 sec</SelectItem>
-                  <SelectItem value="30 sec">30 sec</SelectItem>
-                  <SelectItem value="1 min">1 min</SelectItem>
-                  <SelectItem value="2 min">2 min</SelectItem>
-                  <SelectItem value="5 min">5 min</SelectItem>
-                  <SelectItem value="1 hour">1 hour</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -450,19 +607,58 @@ function TradeLogger() {
           )}
         </AnimatePresence>
 
-        {/* WIN / LOSS */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Next Trade Duration override */}
+        {active && !limitHit && (
+          <MotionCard className="py-2.5 px-4 border-border/50 bg-card/20 flex flex-wrap items-center justify-between gap-3">
+            <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Duration for Next Trade:</span>
+            <div className="flex gap-1.5 flex-wrap">
+              {["15 sec", "30 sec", "1 min", "2 min", "5 min", "1 hour"].map((dur) => (
+                <button
+                  key={dur}
+                  type="button"
+                  onClick={() => setNextTradeDuration(dur)}
+                  className={cn(
+                    "px-3 py-1 text-xs rounded-full border transition-all duration-200 cursor-pointer font-medium",
+                    nextTradeDuration === dur
+                      ? "bg-foreground text-background border-foreground font-semibold"
+                      : "bg-muted/40 border-border text-muted-foreground hover:bg-muted/70"
+                  )}
+                >
+                  {dur}
+                </button>
+              ))}
+            </div>
+          </MotionCard>
+        )}
+
+        {/* WIN / DRAW / LOSS */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <motion.button
             whileTap={{ scale: 0.97 }}
             disabled={!active || limitHit}
             onClick={() => logTrade("win")}
-            className="flex flex-col items-center justify-center gap-3 rounded-3xl border-2 border-[#4ade80]/30 bg-[#4ade80]/10 py-12 text-[#4ade80] transition hover:bg-[#4ade80]/20 disabled:cursor-not-allowed disabled:opacity-30 cursor-pointer"
+            className="flex flex-col items-center justify-center gap-3 rounded-3xl border-2 border-[#4ade80]/30 bg-[#4ade80]/10 py-10 text-[#4ade80] transition hover:bg-[#4ade80]/20 disabled:cursor-not-allowed disabled:opacity-30 cursor-pointer"
           >
-            <CheckCircle2 className="h-14 w-14" />
-            <span className="font-display text-3xl font-bold tracking-tight">WIN</span>
+            <CheckCircle2 className="h-12 w-12" />
+            <span className="font-display text-2xl font-bold tracking-tight">WIN</span>
             {active && !limitHit && (
-              <span className="text-xs opacity-75 font-semibold bg-[#4ade80]/20 px-2 py-0.5 rounded-full">
-                {strategy!.max - log.length} left (+{strategy!.payoutPct}% Payout)
+              <span className="text-[10px] opacity-75 font-semibold bg-[#4ade80]/20 px-2 py-0.5 rounded-full">
+                {strategy!.max - log.length} left (+{strategy!.payoutPct}%)
+              </span>
+            )}
+          </motion.button>
+
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            disabled={!active || limitHit}
+            onClick={() => logTrade("draw")}
+            className="flex flex-col items-center justify-center gap-3 rounded-3xl border-2 border-slate-400/30 bg-slate-400/10 py-10 text-slate-400 transition hover:bg-slate-400/20 disabled:cursor-not-allowed disabled:opacity-30 cursor-pointer"
+          >
+            <span className="relative flex h-12 w-12 items-center justify-center rounded-full border-4 border-slate-400 font-display text-xl font-bold">0</span>
+            <span className="font-display text-2xl font-bold tracking-tight">DRAW</span>
+            {active && !limitHit && (
+              <span className="text-[10px] opacity-75 font-semibold bg-slate-400/20 px-2 py-0.5 rounded-full">
+                Neutral (+0.00)
               </span>
             )}
           </motion.button>
@@ -471,13 +667,13 @@ function TradeLogger() {
             whileTap={{ scale: 0.97 }}
             disabled={!active || limitHit}
             onClick={() => logTrade("loss")}
-            className="flex flex-col items-center justify-center gap-3 rounded-3xl border-2 border-[#f87171]/30 bg-[#f87171]/10 py-12 text-[#f87171] transition hover:bg-[#f87171]/20 disabled:cursor-not-allowed disabled:opacity-30 cursor-pointer"
+            className="flex flex-col items-center justify-center gap-3 rounded-3xl border-2 border-[#f87171]/30 bg-[#f87171]/10 py-10 text-[#f87171] transition hover:bg-[#f87171]/20 disabled:cursor-not-allowed disabled:opacity-30 cursor-pointer"
           >
-            <XCircle className="h-14 w-14" />
-            <span className="font-display text-3xl font-bold tracking-tight">LOSS</span>
+            <XCircle className="h-12 w-12" />
+            <span className="font-display text-2xl font-bold tracking-tight">LOSS</span>
             {active && !limitHit && (
-              <span className="text-xs opacity-75 font-semibold bg-[#f87171]/20 px-2 py-0.5 rounded-full">
-                {strategy!.currency}{strategy!.currency.length > 1 ? " " : ""}{(strategy!.amount * (strategy!.riskPct / 100)).toFixed(2)} Risked (-{strategy!.riskPct}%)
+              <span className="text-[10px] opacity-75 font-semibold bg-[#f87171]/20 px-2 py-0.5 rounded-full">
+                {strategy!.currency}{strategy!.currency.length > 1 ? " " : ""}{(strategy!.amount * (strategy!.riskPct / 100)).toFixed(2)} Risked
               </span>
             )}
           </motion.button>
@@ -517,6 +713,8 @@ function TradeLogger() {
               <h2 className="mt-1 font-display text-lg font-semibold">
                 <span className="text-[#4ade80]">{wins}W</span>
                 <span className="mx-1 text-muted-foreground">/</span>
+                <span className="text-slate-400">{draws}D</span>
+                <span className="mx-1 text-muted-foreground">/</span>
                 <span className="text-[#f87171]">{losses}L</span>
                 <span className="mx-2 text-muted-foreground">·</span>
                 <span className={totalPnl >= 0 ? "text-[var(--sage)]" : "text-[var(--fear)]"}>
@@ -537,6 +735,40 @@ function TradeLogger() {
                   <SelectItem value="all">All Time</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Dynamic Reset Logs Action */}
+              {log.length > 0 && (
+                <div className="flex items-center ml-1 animate-fade-in">
+                  {confirmClearLogs ? (
+                    <div className="flex items-center gap-1 bg-[var(--blush)]/10 p-0.5 rounded-xl border border-[var(--blush)]/20">
+                      <button
+                        type="button"
+                        onClick={executeClearLogs}
+                        disabled={clearingLogs}
+                        className="px-2 py-1 bg-[var(--blush)] hover:opacity-90 text-white text-[10px] font-bold rounded-lg transition cursor-pointer"
+                      >
+                        {clearingLogs ? "..." : "Yes"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmClearLogs(false)}
+                        disabled={clearingLogs}
+                        className="px-2 py-1 bg-muted text-muted-foreground hover:text-foreground text-[10px] font-semibold rounded-lg transition cursor-pointer"
+                      >
+                        No
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmClearLogs(true)}
+                      className="px-2.5 py-1.5 bg-[var(--blush)]/15 border border-[var(--blush)]/30 hover:bg-[var(--blush)]/25 text-[var(--blush)] text-xs font-semibold rounded-xl transition cursor-pointer"
+                    >
+                      Reset Logs
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -578,7 +810,13 @@ function TradeLogger() {
                           <td className="px-2 py-2.5">
                             <span
                               className="rounded-full px-2 py-0.5 text-[11px] font-medium"
-                              style={t.result === "win" ? { background: "#4ade8022", color: "#4ade80" } : { background: "#f8717122", color: "#f87171" }}
+                              style={
+                                t.result === "win"
+                                  ? { background: "#4ade8022", color: "#4ade80" }
+                                  : t.result === "loss"
+                                  ? { background: "#f8717122", color: "#f87171" }
+                                  : { background: "#94a3b822", color: "#94a3b8" }
+                              }
                             >
                               {t.result.toUpperCase()}
                             </span>

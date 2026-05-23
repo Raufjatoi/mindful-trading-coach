@@ -153,8 +153,11 @@ function Analytics() {
   // ── Derived stats ────────────────────────────────────────────────────────
   const wins     = trades.filter((t) => t.result === "win").length;
   const losses   = trades.filter((t) => t.result === "loss").length;
+  const draws    = trades.filter((t) => t.result === "draw").length;
   const totalPnl = trades.reduce((s, t) => s + t.pnl, 0);
-  const winRate  = trades.length > 0 ? Math.round((wins / trades.length) * 100) : 0;
+  // Calculate win rate by ignoring neutral draws
+  const activeTradesCount = wins + losses;
+  const winRate  = activeTradesCount > 0 ? Math.round((wins / activeTradesCount) * 100) : 0;
 
   // Current win streak
   const streak = (() => {
@@ -207,7 +210,7 @@ function Analytics() {
             <Stat
               label="Win Rate"
               value={`${winRate}%`}
-              sub={`${wins}W / ${losses}L`}
+              sub={`${wins}W / ${draws}D / ${losses}L`}
               icon={Target}
               color="var(--sage)"
             />

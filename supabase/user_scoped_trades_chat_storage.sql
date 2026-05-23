@@ -11,7 +11,7 @@ create table trades (
   time       text not null,
   pair       text not null,
   duration   text default '1 min',
-  result     text check (result in ('win','loss')) not null,
+  result     text check (result in ('win','loss','draw')) not null,
   amount     numeric not null,
   pnl        numeric not null
 );
