@@ -120,6 +120,7 @@ export type TradeEntry = {
   result: TradeResult;
   amount: number;
   pnl: number;
+  duration?: string;
 };
 
 export const initialTradeLog: TradeEntry[] = [

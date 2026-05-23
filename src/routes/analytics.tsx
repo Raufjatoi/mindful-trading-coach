@@ -115,6 +115,8 @@ function Analytics() {
   const { user } = useAuth();
   const [trades, setTrades]   = useState<DbTrade[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     if (!user || !supabase) { setLoading(false); return; }
@@ -128,6 +130,25 @@ function Analytics() {
         setLoading(false);
       });
   }, [user]);
+
+  async function handleReset() {
+    if (!supabase || !user) return;
+    setResetting(true);
+    try {
+      const { error } = await supabase
+        .from("trades")
+        .delete()
+        .eq("user_id", user.id);
+      
+      if (error) throw error;
+      setTrades([]);
+    } catch (err) {
+      console.error("Failed to reset trades:", err);
+    } finally {
+      setResetting(false);
+      setConfirmReset(false);
+    }
+  }
 
   // ── Derived stats ────────────────────────────────────────────────────────
   const wins     = trades.filter((t) => t.result === "win").length;
@@ -308,6 +329,47 @@ function Analytics() {
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{p.detail}</p>
                 </motion.div>
               ))}
+            </div>
+          </MotionCard>
+
+          {/* Danger Zone */}
+          <MotionCard className="border-[var(--blush)]/20 bg-[var(--blush)]/[0.02]">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--blush)] font-semibold">Danger Zone</p>
+                <h3 className="mt-1 font-display text-base font-semibold text-foreground">Reset Trading History</h3>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-xl">
+                  Permanently delete all your logged trades. This will reset your win rate, P&L curves, streaks, and analytics tables. This action cannot be undone.
+                </p>
+              </div>
+              
+              <div className="shrink-0 flex items-center">
+                {confirmReset ? (
+                  <div className="flex items-center gap-2 rounded-2xl bg-[var(--blush)]/10 p-1.5 border border-[var(--blush)]/25">
+                    <button
+                      onClick={handleReset}
+                      disabled={resetting}
+                      className="px-3.5 py-1.5 bg-[var(--blush)] hover:bg-[var(--blush)]/90 text-white text-xs font-semibold rounded-xl transition cursor-pointer disabled:opacity-50"
+                    >
+                      {resetting ? "Resetting..." : "Yes, Reset All"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmReset(false)}
+                      disabled={resetting}
+                      className="px-3.5 py-1.5 hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-semibold rounded-xl transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmReset(true)}
+                    className="px-5 py-2.5 bg-[var(--blush)]/15 border border-[var(--blush)]/30 hover:bg-[var(--blush)]/25 text-[var(--blush)] rounded-2xl text-sm font-semibold transition cursor-pointer"
+                  >
+                    Start Over / Reset Analytics
+                  </button>
+                )}
+              </div>
             </div>
           </MotionCard>
         </div>

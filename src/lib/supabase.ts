@@ -14,4 +14,6 @@ export type DbTrade = {
   result: "win" | "loss";
   amount: number;
   pnl: number;
+  duration?: string;
 };
+

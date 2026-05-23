@@ -1,0 +1,1 @@
+ALTER TABLE trades ADD COLUMN duration text DEFAULT '1 min';

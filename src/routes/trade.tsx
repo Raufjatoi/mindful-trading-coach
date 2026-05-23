@@ -31,6 +31,7 @@ type ActiveStrategy = {
   riskPct: number;
   payoutPct: number;
   currency: string;
+  duration: string;
 };
 
 function TradeLogger() {
@@ -44,19 +45,44 @@ function TradeLogger() {
   const [riskPct,     setRisk]        = useState(100); // Risk per trade default 100%
   const [payoutPct,   setPayoutPct]   = useState(85);  // Benefit payout default 85%
   const [currency,    setCurrency]    = useState("$"); // Default currency selector
+  const [duration,    setDuration]    = useState("1 min");
   const [strategy,    setStrat]       = useState<ActiveStrategy | null>(null);
   const [log,         setLog]         = useState<TradeEntry[]>([]);
+  const [range,       setRange]       = useState("today");
   const idRef = useRef(100);
 
-  // Load this user's trades for today from Supabase
+  const rangeTitles: Record<string, string> = {
+    today: "Today's Log",
+    "3days": "3 Days Log",
+    "1week": "1 Week Log",
+    "1month": "1 Month Log",
+    all: "All-Time Log",
+  };
+
+  // Load this user's trades for today or selected range from Supabase
   useEffect(() => {
     if (!supabase || !user) return;
-    const today = new Date().toISOString().split("T")[0];
-    supabase
-      .from("trades")
-      .select("*")
-      .eq("user_id", user.id)
-      .gte("created_at", `${today}T00:00:00Z`)
+    
+    let query = supabase.from("trades").select("*").eq("user_id", user.id);
+    
+    if (range === "today") {
+      const today = new Date().toISOString().split("T")[0];
+      query = query.gte("created_at", `${today}T00:00:00Z`);
+    } else if (range === "3days") {
+      const date = new Date();
+      date.setDate(date.getDate() - 3);
+      query = query.gte("created_at", date.toISOString());
+    } else if (range === "1week") {
+      const date = new Date();
+      date.setDate(date.getDate() - 7);
+      query = query.gte("created_at", date.toISOString());
+    } else if (range === "1month") {
+      const date = new Date();
+      date.setMonth(date.getMonth() - 1);
+      query = query.gte("created_at", date.toISOString());
+    } // "all" has no date limit
+
+    query
       .order("created_at", { ascending: true })
       .then(({ data }) => {
         if (data) {
@@ -68,11 +94,12 @@ function TradeLogger() {
               result: t.result as "win" | "loss",
               amount: t.amount,
               pnl: t.pnl,
+              duration: t.duration,
             })),
           );
         }
       });
-  }, [user]);
+  }, [user, range]);
 
   // Auto-sync input fields to active strategy state in real-time
   useEffect(() => {
@@ -86,7 +113,8 @@ function TradeLogger() {
       strategy.amount !== amount ||
       strategy.riskPct !== riskPct ||
       strategy.payoutPct !== payoutPct ||
-      strategy.currency !== currency
+      strategy.currency !== currency ||
+      strategy.duration !== duration
     ) {
       setStrat({
         pair: resolvedPair,
@@ -97,9 +125,10 @@ function TradeLogger() {
         riskPct,
         payoutPct,
         currency,
+        duration,
       });
     }
-  }, [pair, customPair, startTime, endTime, maxTrades, amount, riskPct, payoutPct, currency, strategy]);
+  }, [pair, customPair, startTime, endTime, maxTrades, amount, riskPct, payoutPct, currency, duration, strategy]);
 
   // Helper to format money amounts based on the current currency symbol
   function formatMoney(amount: number, symbol: string) {
@@ -127,7 +156,9 @@ function TradeLogger() {
       riskPct,
       payoutPct,
       currency,
+      duration,
     });
+    setRange("today");
     setLog([]);
   }
 
@@ -149,7 +180,15 @@ function TradeLogger() {
       ? +(strategy!.amount * payoutMultiplier).toFixed(2)
       : -+(strategy!.amount * riskMultiplier).toFixed(2);
 
-    const entry: TradeEntry = { id: idRef.current++, time, pair: strategy!.pair, result, amount: strategy!.amount, pnl };
+    const entry: TradeEntry = {
+      id: idRef.current++,
+      time,
+      pair: strategy!.pair,
+      result,
+      amount: strategy!.amount,
+      pnl,
+      duration: strategy!.duration,
+    };
 
     setLog((prev) => [...prev, entry]);
 
@@ -161,6 +200,7 @@ function TradeLogger() {
         result: entry.result,
         amount: entry.amount,
         pnl: entry.pnl,
+        duration: entry.duration,
       });
     }
   }
@@ -213,6 +253,21 @@ function TradeLogger() {
                     <SelectLabel>Other</SelectLabel>
                     <SelectItem value="CUSTOM">Custom Pair...</SelectItem>
                   </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <label className="text-xs text-muted-foreground font-medium">Trade Duration</label>
+              <Select value={duration} onValueChange={setDuration}>
+                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15 sec">15 sec</SelectItem>
+                  <SelectItem value="30 sec">30 sec</SelectItem>
+                  <SelectItem value="1 min">1 min</SelectItem>
+                  <SelectItem value="2 min">2 min</SelectItem>
+                  <SelectItem value="5 min">5 min</SelectItem>
+                  <SelectItem value="1 hour">1 hour</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -456,7 +511,9 @@ function TradeLogger() {
         <MotionCard>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Today's Log</p>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                {rangeTitles[range] || "Trade Log"}
+              </p>
               <h2 className="mt-1 font-display text-lg font-semibold">
                 <span className="text-[#4ade80]">{wins}W</span>
                 <span className="mx-1 text-muted-foreground">/</span>
@@ -466,6 +523,20 @@ function TradeLogger() {
                   {formatMoney(totalPnl, currency)}
                 </span>
               </h2>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted-foreground font-medium shrink-0">Range:</label>
+              <Select value={range} onValueChange={setRange}>
+                <SelectTrigger className="h-8 w-[105px] text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="3days">3 Days</SelectItem>
+                  <SelectItem value="1week">1 Week</SelectItem>
+                  <SelectItem value="1month">1 Month</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -498,7 +569,12 @@ function TradeLogger() {
                           className="border-t border-border/50"
                         >
                           <td className="px-2 py-2.5 text-muted-foreground">{t.time}</td>
-                          <td className="px-2 py-2.5 font-medium">{t.pair}</td>
+                          <td className="px-2 py-2.5 font-medium">
+                            <div>{t.pair}</div>
+                            <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
+                              {t.duration || "1 min"}
+                            </div>
+                          </td>
                           <td className="px-2 py-2.5">
                             <span
                               className="rounded-full px-2 py-0.5 text-[11px] font-medium"
