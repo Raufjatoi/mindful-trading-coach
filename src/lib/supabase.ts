@@ -11,7 +11,7 @@ export type DbTrade = {
   created_at: string;
   time: string;
   pair: string;
-  result: "win" | "loss";
+  result: "win" | "loss" | "draw";
   amount: number;
   pnl: number;
   duration?: string;

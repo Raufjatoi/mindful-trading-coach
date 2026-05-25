@@ -7,6 +7,7 @@ import { MotionCard } from "@/components/ui/motion-card";
 import { useAuth } from "@/contexts/auth";
 import { supabase, type DbTrade } from "@/lib/supabase";
 import { behavioralPatterns } from "@/lib/mock";
+import { analyzeTradingBehavior, type BehaviorInsight } from "@/lib/gemma";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip,
   CartesianGrid, BarChart, Bar, Cell,
@@ -117,6 +118,8 @@ function Analytics() {
   const [loading, setLoading] = useState(true);
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [behaviorInsights, setBehaviorInsights] = useState<BehaviorInsight[]>([]);
+  const [loadingInsights, setLoadingInsights] = useState(false);
 
   useEffect(() => {
     if (!user || !supabase) { setLoading(false); return; }
@@ -130,6 +133,46 @@ function Analytics() {
         setLoading(false);
       });
   }, [user]);
+
+  // change-aware AI behavior analysis content caching effect
+  useEffect(() => {
+    if (loading || trades.length === 0) {
+      setBehaviorInsights([]);
+      return;
+    }
+
+    const fingerprint = trades.map((t) => `${t.id}_${t.result}`).join(",");
+    const cachedFingerprint = localStorage.getItem("mtc_insights_fingerprint");
+    const cachedInsights = localStorage.getItem("mtc_insights_cache");
+
+    if (cachedFingerprint === fingerprint && cachedInsights) {
+      try {
+        setBehaviorInsights(JSON.parse(cachedInsights));
+        return;
+      } catch (err) {
+        console.error("Failed to parse cached behavior insights:", err);
+      }
+    }
+
+    setLoadingInsights(true);
+    analyzeTradingBehavior(trades)
+      .then((insights) => {
+        if (insights && insights.length > 0) {
+          setBehaviorInsights(insights);
+          localStorage.setItem("mtc_insights_cache", JSON.stringify(insights));
+          localStorage.setItem("mtc_insights_fingerprint", fingerprint);
+        } else {
+          setBehaviorInsights(behavioralPatterns);
+        }
+      })
+      .catch((err) => {
+        console.error("Error analyzing trading behavior:", err);
+        setBehaviorInsights(behavioralPatterns);
+      })
+      .finally(() => {
+        setLoadingInsights(false);
+      });
+  }, [trades, loading]);
 
   async function handleReset() {
     if (!supabase || !user) return;
@@ -314,24 +357,45 @@ function Analytics() {
             </section>
           )}
 
-          {/* Behavioral patterns — always shown */}
+          {/* Behavioral patterns */}
           <MotionCard>
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Behavioral patterns</p>
-            <h2 className="mt-1 font-display text-lg font-semibold">What we notice</h2>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Behavioral patterns</p>
+                <h2 className="mt-1 font-display text-lg font-semibold">AI Trading Insights</h2>
+              </div>
+              {loadingInsights && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium animate-pulse">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--sage)]"></span>
+                  <span>AI Analyzing Logs...</span>
+                </div>
+              )}
+            </div>
+            
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {behavioralPatterns.map((p, i) => (
-                <motion.div
-                  key={p.title}
-                  initial={{ opacity: 0, x: -8 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.06 }}
-                  className="rounded-xl border border-border/40 bg-background/30 p-3"
-                >
-                  <p className="text-sm font-medium">{p.title}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{p.detail}</p>
-                </motion.div>
-              ))}
+              {loadingInsights ? (
+                [...Array(4)].map((_, i) => (
+                  <div key={i} className="rounded-xl border border-border/40 bg-background/20 p-4 space-y-2 animate-pulse">
+                    <div className="h-4 bg-muted/60 rounded-md w-1/3"></div>
+                    <div className="h-3 bg-muted/40 rounded-md w-3/4"></div>
+                    <div className="h-3 bg-muted/40 rounded-md w-2/3"></div>
+                  </div>
+                ))
+              ) : (
+                (behaviorInsights.length > 0 ? behaviorInsights : behavioralPatterns).map((p, i) => (
+                  <motion.div
+                    key={p.title}
+                    initial={{ opacity: 0, x: -8 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.3, delay: i * 0.05 }}
+                    className="rounded-xl border border-border/40 bg-background/30 p-3"
+                  >
+                    <p className="text-sm font-semibold">{p.title}</p>
+                    <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground font-medium">{p.detail}</p>
+                  </motion.div>
+                ))
+              )}
             </div>
           </MotionCard>
 
