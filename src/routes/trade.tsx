@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { MotionCard } from "@/components/ui/motion-card";
 import {
@@ -289,8 +289,9 @@ function TradeLogger() {
       ? -+(strategy!.amount * riskMultiplier).toFixed(2)
       : 0;
 
+    const tempId = idRef.current++;
     const entry: TradeEntry = {
-      id: idRef.current++,
+      id: tempId,
       time,
       pair: strategy!.pair,
       result,
@@ -302,15 +303,42 @@ function TradeLogger() {
     setLog((prev) => [...prev, entry]);
 
     if (supabase && user) {
-      await supabase.from("trades").insert({
-        user_id: user.id,
-        time: entry.time,
-        pair: entry.pair,
-        result: entry.result,
-        amount: entry.amount,
-        pnl: entry.pnl,
-        duration: entry.duration,
-      });
+      try {
+        const { data, error } = await supabase
+          .from("trades")
+          .insert({
+            user_id: user.id,
+            time: entry.time,
+            pair: entry.pair,
+            result: entry.result,
+            amount: entry.amount,
+            pnl: entry.pnl,
+            duration: entry.duration,
+          })
+          .select();
+        
+        if (!error && data && data.length > 0) {
+          const dbId = data[0].id;
+          setLog((prev) => prev.map((t) => t.id === tempId ? { ...t, id: dbId } : t));
+        }
+      } catch (err) {
+        console.error("Failed to insert trade:", err);
+      }
+    }
+  }
+
+  async function handleDeleteTrade(tradeId: number) {
+    setLog((prev) => prev.filter((t) => t.id !== tradeId));
+    if (supabase && user) {
+      try {
+        await supabase
+          .from("trades")
+          .delete()
+          .eq("id", tradeId)
+          .eq("user_id", user.id);
+      } catch (err) {
+        console.error("Failed to delete trade:", err);
+      }
     }
   }
 
@@ -784,6 +812,7 @@ function TradeLogger() {
                     <th className="px-2 py-2 font-normal">Result</th>
                     <th className="px-2 py-2 font-normal">Amount</th>
                     <th className="px-2 py-2 font-normal">P&L (Return)</th>
+                    <th className="px-2 py-2 font-normal w-8 text-right"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -798,7 +827,7 @@ function TradeLogger() {
                           key={t.id}
                           initial={{ opacity: 0, x: -8 }}
                           animate={{ opacity: 1, x: 0 }}
-                          className="border-t border-border/50"
+                          className="border-t border-border/50 group"
                         >
                           <td className="px-2 py-2.5 text-muted-foreground">{t.time}</td>
                           <td className="px-2 py-2.5 font-medium">
@@ -809,17 +838,17 @@ function TradeLogger() {
                           </td>
                           <td className="px-2 py-2.5">
                             <span
-                              className="rounded-full px-2 py-0.5 text-[11px] font-medium"
-                              style={
-                                t.result === "win"
-                                  ? { background: "#4ade8022", color: "#4ade80" }
-                                  : t.result === "loss"
-                                  ? { background: "#f8717122", color: "#f87171" }
-                                  : { background: "#94a3b822", color: "#94a3b8" }
-                              }
-                            >
-                              {t.result.toUpperCase()}
-                            </span>
+                                className="rounded-full px-2 py-0.5 text-[11px] font-medium"
+                                style={
+                                  t.result === "win"
+                                    ? { background: "#4ade8022", color: "#4ade80" }
+                                    : t.result === "loss"
+                                    ? { background: "#f8717122", color: "#f87171" }
+                                    : { background: "#94a3b822", color: "#94a3b8" }
+                                }
+                              >
+                                {t.result.toUpperCase()}
+                              </span>
                           </td>
                           <td className="px-2 py-2.5 text-muted-foreground">{displayCurrency}{displayCurrency.length > 1 ? " " : ""}{t.amount}</td>
                           <td className={cn("px-2 py-2.5 font-medium", t.pnl >= 0 ? "text-[var(--sage)]" : "text-[var(--fear)]")}>
@@ -829,6 +858,16 @@ function TradeLogger() {
                             <span className="text-xs opacity-80 block">
                               {t.pnl >= 0 ? `+${inferredPct}% Win` : `-${inferredPct}% Loss`}
                             </span>
+                          </td>
+                          <td className="px-2 py-2.5 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTrade(t.id)}
+                              className="text-muted-foreground/30 hover:text-red-400 hover:bg-red-400/10 p-1.5 rounded-xl transition-all cursor-pointer inline-flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100"
+                              title="Delete/Undo Trade Log"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </td>
                         </motion.tr>
                       );

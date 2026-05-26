@@ -13,6 +13,7 @@ import { Route as TradeRouteImport } from './routes/trade'
 import { Route as TimeRouteImport } from './routes/time'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as GuideRouteImport } from './routes/guide'
+import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as CanvasRouteImport } from './routes/canvas'
 import { Route as AuthRouteImport } from './routes/auth'
@@ -37,6 +38,11 @@ const NewsRoute = NewsRouteImport.update({
 const GuideRoute = GuideRouteImport.update({
   id: '/guide',
   path: '/guide',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExploreRoute = ExploreRouteImport.update({
+  id: '/explore',
+  path: '/explore',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatRoute = ChatRouteImport.update({
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/canvas': typeof CanvasRoute
   '/chat': typeof ChatRoute
+  '/explore': typeof ExploreRoute
   '/guide': typeof GuideRoute
   '/news': typeof NewsRoute
   '/time': typeof TimeRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/canvas': typeof CanvasRoute
   '/chat': typeof ChatRoute
+  '/explore': typeof ExploreRoute
   '/guide': typeof GuideRoute
   '/news': typeof NewsRoute
   '/time': typeof TimeRoute
@@ -94,6 +102,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/canvas': typeof CanvasRoute
   '/chat': typeof ChatRoute
+  '/explore': typeof ExploreRoute
   '/guide': typeof GuideRoute
   '/news': typeof NewsRoute
   '/time': typeof TimeRoute
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/canvas'
     | '/chat'
+    | '/explore'
     | '/guide'
     | '/news'
     | '/time'
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/canvas'
     | '/chat'
+    | '/explore'
     | '/guide'
     | '/news'
     | '/time'
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/canvas'
     | '/chat'
+    | '/explore'
     | '/guide'
     | '/news'
     | '/time'
@@ -141,6 +153,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   CanvasRoute: typeof CanvasRoute
   ChatRoute: typeof ChatRoute
+  ExploreRoute: typeof ExploreRoute
   GuideRoute: typeof GuideRoute
   NewsRoute: typeof NewsRoute
   TimeRoute: typeof TimeRoute
@@ -175,6 +188,13 @@ declare module '@tanstack/react-router' {
       path: '/guide'
       fullPath: '/guide'
       preLoaderRoute: typeof GuideRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/explore': {
+      id: '/explore'
+      path: '/explore'
+      fullPath: '/explore'
+      preLoaderRoute: typeof ExploreRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chat': {
@@ -221,6 +241,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   CanvasRoute: CanvasRoute,
   ChatRoute: ChatRoute,
+  ExploreRoute: ExploreRoute,
   GuideRoute: GuideRoute,
   NewsRoute: NewsRoute,
   TimeRoute: TimeRoute,

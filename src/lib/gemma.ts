@@ -46,17 +46,36 @@ export async function askMentor(
     .filter(Boolean)
     .join("\n");
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    config: {
-      systemInstruction: MENTOR_SYSTEM,
-      temperature: 0.7,
-      maxOutputTokens: 600,
-    },
-    contents: prompt,
-  });
+  try {
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      config: {
+        systemInstruction: MENTOR_SYSTEM,
+        temperature: 0.7,
+        maxOutputTokens: 600,
+      },
+      contents: prompt,
+    });
 
-  return (response.text ?? "").replace(/^Mentor:\s*/i, "").trim();
+    return (response.text ?? "").replace(/^Mentor:\s*/i, "").trim();
+  } catch (err) {
+    console.warn("Primary chat mentor model failed, trying gemini-1.5-flash...", err);
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        config: {
+          systemInstruction: MENTOR_SYSTEM,
+          temperature: 0.7,
+          maxOutputTokens: 600,
+        },
+        contents: prompt,
+      });
+      return (response.text ?? "").replace(/^Mentor:\s*/i, "").trim();
+    } catch (fallbackErr) {
+      console.error("All chat mentor models failed:", fallbackErr);
+      throw fallbackErr;
+    }
+  }
 }
 
 // ── News pattern analysis ─────────────────────────────────────────────────────
@@ -88,23 +107,49 @@ export async function analyzeNewsFeed(items: NewsInput[]): Promise<GemmaInsight[
     )
     .join("\n\n");
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    config: {
-      systemInstruction: NEWS_SYSTEM,
-      temperature: 0.4,
-      maxOutputTokens: 900,
-    },
-    contents: formatted,
-  });
+  try {
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      config: {
+        systemInstruction: NEWS_SYSTEM,
+        temperature: 0.4,
+        maxOutputTokens: 900,
+      },
+      contents: formatted,
+    });
 
-  const raw = response.text ?? "[]";
-  const cleaned = raw
-    .replace(/```json\s*/gi, "")
-    .replace(/```\s*/g, "")
-    .trim();
+    const raw = response.text ?? "[]";
+    const cleaned = raw
+      .replace(/```json\s*/gi, "")
+      .replace(/```\s*/g, "")
+      .trim();
 
-  return JSON.parse(cleaned) as GemmaInsight[];
+    return JSON.parse(cleaned) as GemmaInsight[];
+  } catch (err) {
+    console.warn("Primary news analyst model failed, trying gemini-1.5-flash...", err);
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        config: {
+          systemInstruction: NEWS_SYSTEM,
+          temperature: 0.4,
+          maxOutputTokens: 900,
+        },
+        contents: formatted,
+      });
+
+      const raw = response.text ?? "[]";
+      const cleaned = raw
+        .replace(/```json\s*/gi, "")
+        .replace(/```\s*/g, "")
+        .trim();
+
+      return JSON.parse(cleaned) as GemmaInsight[];
+    } catch (fallbackErr) {
+      console.error("All news analyst models failed:", fallbackErr);
+      throw fallbackErr;
+    }
+  }
 }
 
 // ── Trading behavior psychology analysis ──────────────────────────────────────
@@ -142,8 +187,8 @@ export async function analyzeTradingBehavior(
     )
     .join("\n\n");
 
+  // 1. Primary: Google GenAI with model gemma-4-26b-a4b-it
   try {
-    // ── Primary: Google GenAI (Gemini / Gemma) ──
     const ai = getClient();
     const response = await ai.models.generateContent({
       model: MODEL,
@@ -162,50 +207,73 @@ export async function analyzeTradingBehavior(
       .trim();
     return JSON.parse(cleaned) as BehaviorInsight[];
   } catch (primaryErr) {
-    console.warn("Primary Google GenAI behavior analysis failed, attempting Groq fallback...", primaryErr);
+    console.warn("Primary Google GenAI model gemma-4-26b-a4b-it failed, trying Gemini 1.5 Flash...", primaryErr);
     
-    // ── Fallback: Groq API Chat Completion ──
-    const groqKey = import.meta.env.VITE_GROQ_API_KEY as string | undefined;
-    if (!groqKey || groqKey === "your-groq-api-key") {
-      console.error("Groq fallback VITE_GROQ_API_KEY is not set in environment.");
-      throw primaryErr; // Rethrow original to let UI fallback gracefully to mocks
-    }
-
+    // 2. Secondary: Google GenAI with model gemini-1.5-flash
     try {
-      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${groqKey}`,
-        },
-        body: JSON.stringify({
-          model: "deepseek-r1-distill-llama-70b", // DeepSeek reasoning/compound model hosted on Groq!
-          messages: [
-            { role: "system", content: BEHAVIOR_SYSTEM },
-            { role: "user", content: `Here are the logged trades:\n\n${formatted}` },
-          ],
+      const ai = getClient();
+      const response = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        config: {
+          systemInstruction: BEHAVIOR_SYSTEM,
           temperature: 0.3,
-          max_tokens: 1200,
-        }),
+          maxOutputTokens: 1000,
+        },
+        contents: `Here are the logged trades:\n\n${formatted}`,
       });
 
-      if (!groqRes.ok) {
-        throw new Error(`Groq HTTP completion error: status ${groqRes.status}`);
-      }
-
-      const groqData = await groqRes.json();
-      const rawText = groqData.choices?.[0]?.message?.content ?? "[]";
-      
-      // Clean DeepSeek-R1 chain-of-thought think blocks and markdown code wraps
-      const cleaned = rawText
-        .replace(/<think>[\s\S]*?<\/think>/gi, "")
+      const raw = response.text ?? "[]";
+      const cleaned = raw
         .replace(/```json\s*/gi, "")
         .replace(/```\s*/g, "")
         .trim();
       return JSON.parse(cleaned) as BehaviorInsight[];
-    } catch (fallbackErr) {
-      console.error("Groq fallback analysis failed as well:", fallbackErr);
-      throw primaryErr; // Rethrow primary error to keep visual mock grids intact
+    } catch (secondaryErr) {
+      console.warn("Secondary gemini-1.5-flash failed, attempting Groq fallback...", secondaryErr);
+      
+      // 3. Tertiary: Groq API Chat Completion
+      const groqKey = import.meta.env.VITE_GROQ_API_KEY as string | undefined;
+      if (!groqKey || groqKey === "your-groq-api-key") {
+        console.error("Groq fallback VITE_GROQ_API_KEY is not set in environment.");
+        throw secondaryErr; // Rethrow secondary to let UI fallback gracefully to mocks
+      }
+
+      try {
+        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${groqKey}`,
+          },
+          body: JSON.stringify({
+            model: "deepseek-r1-distill-llama-70b", // DeepSeek reasoning/compound model hosted on Groq!
+            messages: [
+              { role: "system", content: BEHAVIOR_SYSTEM },
+              { role: "user", content: `Here are the logged trades:\n\n${formatted}` },
+            ],
+            temperature: 0.3,
+            max_tokens: 1200,
+          }),
+        });
+
+        if (!groqRes.ok) {
+          throw new Error(`Groq HTTP completion error: status ${groqRes.status}`);
+        }
+
+        const groqData = await groqRes.json();
+        const rawText = groqData.choices?.[0]?.message?.content ?? "[]";
+        
+        // Clean DeepSeek-R1 chain-of-thought think blocks and markdown code wraps
+        const cleaned = rawText
+          .replace(/<think>[\s\S]*?<\/think>/gi, "")
+          .replace(/```json\s*/gi, "")
+          .replace(/```\s*/g, "")
+          .trim();
+        return JSON.parse(cleaned) as BehaviorInsight[];
+      } catch (fallbackErr) {
+        console.error("Groq fallback analysis failed as well:", fallbackErr);
+        throw secondaryErr; // Rethrow secondary error to keep visual mock grids intact
+      }
     }
   }
 }
