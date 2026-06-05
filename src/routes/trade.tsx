@@ -31,6 +31,7 @@ type ActiveStrategy = {
   riskPct: number;
   payoutPct: number;
   currency: string;
+  isLive: boolean;
 };
 
 function TradeLogger() {
@@ -46,6 +47,7 @@ function TradeLogger() {
   const [riskPct,     setRisk]        = useState(() => (typeof window !== "undefined" && Number(localStorage.getItem("mtc_riskPct") || "100")) || 100);
   const [payoutPct,   setPayoutPct]   = useState(() => (typeof window !== "undefined" && Number(localStorage.getItem("mtc_payoutPct") || "85")) || 85);
   const [currency,    setCurrency]    = useState(() => (typeof window !== "undefined" && localStorage.getItem("mtc_currency")) || "$");
+  const [isLive,      setIsLive]      = useState(() => (typeof window !== "undefined" && localStorage.getItem("mtc_isLive") !== "false"));
   const [strategy,    setStrat]       = useState<ActiveStrategy | null>(() => {
     if (typeof window === "undefined") return null;
     const saved = localStorage.getItem("mtc_strategy");
@@ -54,6 +56,10 @@ function TradeLogger() {
   const [log,         setLog]         = useState<TradeEntry[]>([]);
   const [range,       setRange]       = useState("today");
   const idRef = useRef(100);
+
+  // Warning confirm live wagers states
+  const [showConfirmLiveModal, setShowConfirmLiveModal] = useState(false);
+  const [pendingLiveResult, setPendingLiveResult] = useState<"win" | "loss" | "draw" | null>(null);
 
   // Dynamic overrides and Strategy Templates states
   const [nextTradeDuration, setNextTradeDuration] = useState(() => (typeof window !== "undefined" && localStorage.getItem("mtc_nextTradeDuration")) || "1 min");
@@ -100,6 +106,26 @@ function TradeLogger() {
     localStorage.setItem("mtc_nextTradeDuration", nextTradeDuration);
   }, [nextTradeDuration]);
 
+  // Sync currency based on isLive mode
+  const handleToggleIsLive = (live: boolean) => {
+    setIsLive(live);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("mtc_isLive", String(live));
+    }
+    if (live) {
+      if (currency === "Demo Rs.") setCurrency("Rs.");
+      else if (currency === "Demo $") setCurrency("$");
+      else if (currency === "Demo ₹") setCurrency("₹");
+      else if (currency === "Demo Rp") setCurrency("Rp");
+      else if (currency === "Demo") setCurrency("$");
+    } else {
+      if (currency === "Rs.") setCurrency("Demo Rs.");
+      else if (currency === "$") setCurrency("Demo $");
+      else if (currency === "₹") setCurrency("Demo ₹");
+      else if (currency === "Rp") setCurrency("Demo Rp");
+    }
+  };
+
   // Persist session configuration inputs to localStorage (SSR-safe)
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -112,7 +138,8 @@ function TradeLogger() {
     localStorage.setItem("mtc_riskPct", String(riskPct));
     localStorage.setItem("mtc_payoutPct", String(payoutPct));
     localStorage.setItem("mtc_currency", currency);
-  }, [pair, customPair, startTime, endTime, maxTrades, amount, riskPct, payoutPct, currency]);
+    localStorage.setItem("mtc_isLive", String(isLive));
+  }, [pair, customPair, startTime, endTime, maxTrades, amount, riskPct, payoutPct, currency, isLive]);
 
   // Persist strategy state to localStorage
   useEffect(() => {
@@ -142,6 +169,7 @@ function TradeLogger() {
       riskPct,
       payoutPct,
       currency,
+      isLive,
     };
     const updated = [...savedStrats, newTemplate];
     setSavedStrats(updated);
@@ -165,6 +193,7 @@ function TradeLogger() {
     setRisk(t.riskPct);
     setPayoutPct(t.payoutPct);
     setCurrency(t.currency);
+    handleToggleIsLive(t.isLive !== false);
   }
 
   // Load this user's trades for today or selected range from Supabase
@@ -199,10 +228,11 @@ function TradeLogger() {
               id: t.id,
               time: t.time,
               pair: t.pair,
-              result: t.result as "win" | "loss",
+              result: t.result as "win" | "loss" | "draw",
               amount: t.amount,
               pnl: t.pnl,
               duration: t.duration,
+              is_live: t.is_live !== false,
             })),
           );
         }
@@ -221,7 +251,8 @@ function TradeLogger() {
       strategy.amount !== amount ||
       strategy.riskPct !== riskPct ||
       strategy.payoutPct !== payoutPct ||
-      strategy.currency !== currency
+      strategy.currency !== currency ||
+      strategy.isLive !== isLive
     ) {
       setStrat({
         pair: resolvedPair,
@@ -232,9 +263,10 @@ function TradeLogger() {
         riskPct,
         payoutPct,
         currency,
+        isLive,
       });
     }
-  }, [pair, customPair, startTime, endTime, maxTrades, amount, riskPct, payoutPct, currency, strategy]);
+  }, [pair, customPair, startTime, endTime, maxTrades, amount, riskPct, payoutPct, currency, isLive, strategy]);
 
   // Helper to format money amounts based on the current currency symbol
   function formatMoney(amount: number, symbol: string) {
@@ -263,6 +295,7 @@ function TradeLogger() {
       riskPct,
       payoutPct,
       currency,
+      isLive,
     });
     setRange("today");
     setLog([]);
@@ -275,6 +308,27 @@ function TradeLogger() {
 
   async function logTrade(result: "win" | "loss" | "draw") {
     if (!active || limitHit) return;
+
+    // Intercept check: if about to log a LIVE trade and last 2 trades were demo losses
+    const isThisLive = strategy?.isLive !== false;
+    const lastTwoDemoLosses = (() => {
+      if (log.length < 2) return false;
+      const last1 = log[log.length - 1];
+      const last2 = log[log.length - 2];
+      return last1.is_live === false && last1.result === "loss" &&
+             last2.is_live === false && last2.result === "loss";
+    })();
+
+    if (isThisLive && lastTwoDemoLosses) {
+      setPendingLiveResult(result);
+      setShowConfirmLiveModal(true);
+      return;
+    }
+
+    await executeLogTrade(result);
+  }
+
+  async function executeLogTrade(result: "win" | "loss" | "draw") {
     const now  = new Date();
     const time = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
     
@@ -298,6 +352,7 @@ function TradeLogger() {
       amount: strategy!.amount,
       pnl,
       duration: nextTradeDuration,
+      is_live: strategy!.isLive !== false,
     };
 
     setLog((prev) => [...prev, entry]);
@@ -314,6 +369,7 @@ function TradeLogger() {
             amount: entry.amount,
             pnl: entry.pnl,
             duration: entry.duration,
+            is_live: entry.is_live,
           })
           .select();
         
@@ -459,7 +515,17 @@ function TradeLogger() {
             
             <div>
               <label className="text-xs text-muted-foreground font-medium">Currency Symbol</label>
-              <Select value={currency} onValueChange={setCurrency}>
+              <Select
+                value={currency}
+                onValueChange={(val) => {
+                  setCurrency(val);
+                  const isDemo = val.startsWith("Demo");
+                  setIsLive(!isDemo);
+                  if (typeof window !== "undefined") {
+                    localStorage.setItem("mtc_isLive", String(!isDemo));
+                  }
+                }}
+              >
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
@@ -482,6 +548,40 @@ function TradeLogger() {
                   </SelectGroup>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div>
+              <label className="text-xs text-muted-foreground font-medium">Trade Mode</label>
+              <div className="flex bg-muted/40 p-1 rounded-xl border border-border/60 mt-1.5 h-9">
+                <button
+                  type="button"
+                  onClick={() => handleToggleIsLive(true)}
+                  className={cn(
+                    "flex-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1",
+                    isLive
+                      ? "bg-emerald-500 text-white shadow-soft border border-emerald-400/30"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <span className="relative flex h-1.5 w-1.5">
+                    {isLive && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
+                    <span className={cn("relative inline-flex rounded-full h-1.5 w-1.5", isLive ? "bg-emerald-400" : "bg-muted-foreground")}></span>
+                  </span>
+                  LIVE
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleIsLive(false)}
+                  className={cn(
+                    "flex-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1",
+                    !isLive
+                      ? "bg-slate-500 text-white shadow-soft border border-slate-400/30"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  DEMO
+                </button>
+              </div>
             </div>
 
             <div>
@@ -827,11 +927,23 @@ function TradeLogger() {
                           key={t.id}
                           initial={{ opacity: 0, x: -8 }}
                           animate={{ opacity: 1, x: 0 }}
-                          className="border-t border-border/50 group"
+                          className={cn(
+                            "border-t border-border/50 group transition-all duration-300",
+                            t.is_live && "bg-cyan-500/[0.015] shadow-[0_0_12px_rgba(6,182,212,0.06)]"
+                          )}
                         >
-                          <td className="px-2 py-2.5 text-muted-foreground">{t.time}</td>
+                          <td className={cn("px-2 py-2.5 text-muted-foreground transition-all duration-300", t.is_live && "border-l-2 border-l-cyan-400 pl-3")}>
+                            {t.time}
+                          </td>
                           <td className="px-2 py-2.5 font-medium">
-                            <div>{t.pair}</div>
+                            <div className="flex items-center">
+                              {t.pair}
+                              {t.is_live && (
+                                <span className="ml-2 px-1.5 py-0.5 rounded text-[8px] font-extrabold tracking-wider uppercase bg-cyan-400/10 text-cyan-400 border border-cyan-400/30 animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.2)]">
+                                  LIVE
+                                </span>
+                              )}
+                            </div>
                             <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
                               {t.duration || "1 min"}
                             </div>
@@ -851,7 +963,11 @@ function TradeLogger() {
                               </span>
                           </td>
                           <td className="px-2 py-2.5 text-muted-foreground">{displayCurrency}{displayCurrency.length > 1 ? " " : ""}{t.amount}</td>
-                          <td className={cn("px-2 py-2.5 font-medium", t.pnl >= 0 ? "text-[var(--sage)]" : "text-[var(--fear)]")}>
+                          <td className={cn(
+                            "px-2 py-2.5 font-medium",
+                            t.pnl >= 0 ? "text-[var(--sage)]" : "text-[var(--fear)]",
+                            t.is_live && (t.pnl >= 0 ? "drop-shadow-[0_0_6px_rgba(74,222,128,0.45)]" : "drop-shadow-[0_0_6px_rgba(248,113,113,0.45)]")
+                          )}>
                             <span className="block font-semibold">
                               {formatMoney(t.pnl, displayCurrency)}
                             </span>
@@ -879,6 +995,76 @@ function TradeLogger() {
           )}
         </MotionCard>
       </div>
+
+      {/* Dynamic confirm live warning modal */}
+      <AnimatePresence>
+        {showConfirmLiveModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setShowConfirmLiveModal(false);
+                setPendingLiveResult(null);
+              }}
+              className="absolute inset-0 bg-background/80 backdrop-blur-md"
+            />
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md overflow-hidden rounded-3xl border border-[var(--blush)]/30 bg-card/95 p-6 shadow-2xl backdrop-blur-xl"
+            >
+              {/* Alert icon or glow */}
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--blush)]/10 text-[var(--blush)] border border-[var(--blush)]/20 animate-pulse shadow-[0_0_15px_rgba(248,113,113,0.25)]">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              
+              <h3 className="text-center font-display text-lg font-bold tracking-tight text-foreground">
+                Pause & Reflect: Switching to Live?
+              </h3>
+              
+              <div className="mt-3 text-xs text-muted-foreground leading-relaxed text-center space-y-2.5">
+                <p>
+                  You just lost <span className="font-semibold text-[var(--blush)]">two Demo trades in a row</span>. Under pressure, it's natural to seek to 'make it back', which is the prime state for <span className="text-foreground font-semibold">revenge trading</span>.
+                </p>
+                <p className="p-3 rounded-2xl bg-muted/40 border border-border/40 font-medium text-foreground italic">
+                  "Why are you switching to real capital now? Is it based on a high-probability A+ setup, or is it an emotional reaction?"
+                </p>
+              </div>
+
+              <div className="mt-5 flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowConfirmLiveModal(false);
+                    setPendingLiveResult(null);
+                  }}
+                  className="flex-1 rounded-xl bg-muted border border-border px-4 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition cursor-pointer"
+                >
+                  Cancel & Take a Break
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (pendingLiveResult) {
+                      await executeLogTrade(pendingLiveResult);
+                    }
+                    setShowConfirmLiveModal(false);
+                    setPendingLiveResult(null);
+                  }}
+                  className="flex-1 rounded-xl bg-foreground px-4 py-2.5 text-xs font-bold text-background transition hover:opacity-90 cursor-pointer"
+                >
+                  Yes, Log Live Trade
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </AppShell>
   );
 }

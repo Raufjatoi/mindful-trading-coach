@@ -180,6 +180,7 @@ export async function analyzeTradingBehavior(
         `Trade #${i + 1}:\n` +
         `Date/Time: ${trade.created_at || trade.time}\n` +
         `Asset/Pair: ${trade.pair}\n` +
+        `Type: ${trade.is_live !== false ? "LIVE" : "DEMO"}\n` +
         `Duration: ${trade.duration || "1 min"}\n` +
         `Outcome: ${trade.result.toUpperCase()}\n` +
         `Amount: ${trade.amount}\n` +

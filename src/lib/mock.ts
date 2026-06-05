@@ -117,15 +117,16 @@ export type TradeEntry = {
   id: number;
   time: string;
   pair: string;
-  result: TradeResult;
+  result: "win" | "loss" | "draw";
   amount: number;
   pnl: number;
   duration?: string;
+  is_live?: boolean;
 };
 
 export const initialTradeLog: TradeEntry[] = [
-  { id: 1, time: "09:14", pair: "EUR/USD", result: "win",  amount: 50, pnl:  95 },
-  { id: 2, time: "10:38", pair: "EUR/USD", result: "loss", amount: 50, pnl: -50 },
+  { id: 1, time: "09:14", pair: "EUR/USD", result: "win",  amount: 50, pnl:  95, is_live: true },
+  { id: 2, time: "10:38", pair: "EUR/USD", result: "loss", amount: 50, pnl: -50, is_live: true },
 ];
 
 export const currencyPairs = [

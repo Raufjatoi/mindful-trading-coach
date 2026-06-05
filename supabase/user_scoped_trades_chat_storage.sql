@@ -13,7 +13,8 @@ create table trades (
   duration   text default '1 min',
   result     text check (result in ('win','loss','draw')) not null,
   amount     numeric not null,
-  pnl        numeric not null
+  pnl        numeric not null,
+  is_live    boolean default true
 );
 alter table trades enable row level security;
 create policy "own trades" on trades for all

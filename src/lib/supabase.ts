@@ -15,5 +15,6 @@ export type DbTrade = {
   amount: number;
   pnl: number;
   duration?: string;
+  is_live?: boolean;
 };
 

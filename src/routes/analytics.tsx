@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Lock, TrendingUp, TrendingDown, Target, Flame } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -7,6 +7,7 @@ import { MotionCard } from "@/components/ui/motion-card";
 import { useAuth } from "@/contexts/auth";
 import { supabase, type DbTrade } from "@/lib/supabase";
 import { behavioralPatterns } from "@/lib/mock";
+import { cn } from "@/lib/utils";
 import { analyzeTradingBehavior, type BehaviorInsight } from "@/lib/gemma";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip,
@@ -120,6 +121,7 @@ function Analytics() {
   const [resetting, setResetting] = useState(false);
   const [behaviorInsights, setBehaviorInsights] = useState<BehaviorInsight[]>([]);
   const [loadingInsights, setLoadingInsights] = useState(false);
+  const [modeFilter, setModeFilter] = useState<"all" | "live" | "demo">("all");
 
   useEffect(() => {
     if (!user || !supabase) { setLoading(false); return; }
@@ -134,14 +136,23 @@ function Analytics() {
       });
   }, [user]);
 
+  // Memoize filtered trades to prevent reference instability and unnecessary renders
+  const filteredTrades = useMemo(() => {
+    return trades.filter((t) => {
+      if (modeFilter === "live") return t.is_live !== false;
+      if (modeFilter === "demo") return t.is_live === false;
+      return true;
+    });
+  }, [trades, modeFilter]);
+
   // change-aware AI behavior analysis content caching effect
   useEffect(() => {
-    if (loading || trades.length === 0) {
+    if (loading || filteredTrades.length === 0) {
       setBehaviorInsights([]);
       return;
     }
 
-    const fingerprint = trades.map((t) => `${t.id}_${t.result}`).join(",");
+    const fingerprint = `${modeFilter}_` + filteredTrades.map((t) => `${t.id}_${t.result}`).join(",");
     const cachedFingerprint = localStorage.getItem("mtc_insights_fingerprint");
     const cachedInsights = localStorage.getItem("mtc_insights_cache");
 
@@ -155,7 +166,7 @@ function Analytics() {
     }
 
     setLoadingInsights(true);
-    analyzeTradingBehavior(trades)
+    analyzeTradingBehavior(filteredTrades)
       .then((insights) => {
         if (insights && insights.length > 0) {
           setBehaviorInsights(insights);
@@ -172,7 +183,7 @@ function Analytics() {
       .finally(() => {
         setLoadingInsights(false);
       });
-  }, [trades, loading]);
+  }, [filteredTrades, loading, modeFilter]);
 
   async function handleReset() {
     if (!supabase || !user) return;
@@ -194,10 +205,10 @@ function Analytics() {
   }
 
   // ── Derived stats ────────────────────────────────────────────────────────
-  const wins     = trades.filter((t) => t.result === "win").length;
-  const losses   = trades.filter((t) => t.result === "loss").length;
-  const draws    = trades.filter((t) => t.result === "draw").length;
-  const totalPnl = trades.reduce((s, t) => s + t.pnl, 0);
+  const wins     = filteredTrades.filter((t) => t.result === "win").length;
+  const losses   = filteredTrades.filter((t) => t.result === "loss").length;
+  const draws    = filteredTrades.filter((t) => t.result === "draw").length;
+  const totalPnl = filteredTrades.reduce((s, t) => s + t.pnl, 0);
   // Calculate win rate by ignoring neutral draws
   const activeTradesCount = wins + losses;
   const winRate  = activeTradesCount > 0 ? Math.round((wins / activeTradesCount) * 100) : 0;
@@ -205,22 +216,22 @@ function Analytics() {
   // Current win streak
   const streak = (() => {
     let s = 0;
-    for (let i = trades.length - 1; i >= 0; i--) {
-      if (trades[i].result === "win") s++;
+    for (let i = filteredTrades.length - 1; i >= 0; i--) {
+      if (filteredTrades[i].result === "win") s++;
       else break;
     }
     return s;
   })();
 
   // Cumulative P&L over time
-  const pnlCurve = trades.reduce<{ label: string; cumPnl: number }[]>((acc, t, i) => {
+  const pnlCurve = filteredTrades.reduce<{ label: string; cumPnl: number }[]>((acc, t, i) => {
     const prev = acc[acc.length - 1]?.cumPnl ?? 0;
     return [...acc, { label: `#${i + 1}`, cumPnl: +(prev + t.pnl).toFixed(2) }];
   }, []);
 
   // P&L by pair
   const pairMap: Record<string, { pair: string; pnl: number; trades: number }> = {};
-  trades.forEach((t) => {
+  filteredTrades.forEach((t) => {
     if (!pairMap[t.pair]) pairMap[t.pair] = { pair: t.pair, pnl: 0, trades: 0 };
     pairMap[t.pair].pnl    += t.pnl;
     pairMap[t.pair].trades += 1;
@@ -248,6 +259,42 @@ function Analytics() {
       {/* ── Real data ── */}
       {user && !loading && trades.length > 0 && (
         <div className="space-y-4">
+          {/* Trade Mode view filter dropdown/tabs */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/40 pb-4">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Account mode</p>
+              <h2 className="mt-0.5 font-display text-lg font-semibold">Performance Metrics</h2>
+            </div>
+            
+            <div className={cn(
+              "flex bg-muted/40 p-1 rounded-xl border self-start sm:self-auto transition-all duration-300",
+              modeFilter === "live"
+                ? "border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.25)]"
+                : "border-border/60"
+            )}>
+              {(["all", "live", "demo"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setModeFilter(m)}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-bold rounded-lg transition-all capitalize cursor-pointer flex items-center gap-1.5",
+                    modeFilter === m
+                      ? "bg-foreground text-background shadow-soft border border-border/10"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {m === "live" && (
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                    </span>
+                  )}
+                  {m === "all" ? "All Trades" : m === "live" ? "Live Only" : "Demo Only"}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Stat tiles */}
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Stat
@@ -260,14 +307,14 @@ function Analytics() {
             <Stat
               label="Total P&L"
               value={`${totalPnl >= 0 ? "+" : ""}$${totalPnl.toFixed(2)}`}
-              sub={`${trades.length} trades`}
+              sub={`${filteredTrades.length} trade${filteredTrades.length !== 1 ? "s" : ""}`}
               icon={totalPnl >= 0 ? TrendingUp : TrendingDown}
               color={totalPnl >= 0 ? "var(--sage)" : "var(--fear)"}
             />
             <Stat
               label="Total Trades"
-              value={`${trades.length}`}
-              sub="all time"
+              value={`${filteredTrades.length}`}
+              sub={modeFilter === "all" ? "all time" : modeFilter === "live" ? "live trades" : "demo trades"}
               icon={TrendingUp}
               color="var(--muted-foreground)"
             />
