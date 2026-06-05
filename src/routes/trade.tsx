@@ -59,7 +59,7 @@ function TradeLogger() {
 
   // Warning confirm live wagers states
   const [showConfirmLiveModal, setShowConfirmLiveModal] = useState(false);
-  const [pendingLiveResult, setPendingLiveResult] = useState<"win" | "loss" | "draw" | null>(null);
+  const [pendingLiveCurrency, setPendingLiveCurrency] = useState<string | null>(null);
 
   // Dynamic overrides and Strategy Templates states
   const [nextTradeDuration, setNextTradeDuration] = useState(() => (typeof window !== "undefined" && localStorage.getItem("mtc_nextTradeDuration")) || "1 min");
@@ -108,6 +108,25 @@ function TradeLogger() {
 
   // Sync currency based on isLive mode
   const handleToggleIsLive = (live: boolean) => {
+    if (live) {
+      // Check for demo loss streak of 2 or more trades
+      const hasLossStreak = (() => {
+        if (log.length < 2) return false;
+        const last1 = log[log.length - 1];
+        const last2 = log[log.length - 2];
+        return last1.is_live === false && last1.result === "loss" &&
+               last2.is_live === false && last2.result === "loss";
+      })();
+      if (hasLossStreak) {
+        setShowConfirmLiveModal(true);
+        return;
+      }
+    }
+    
+    executeToggleLive(live);
+  };
+
+  const executeToggleLive = (live: boolean) => {
     setIsLive(live);
     if (typeof window !== "undefined") {
       localStorage.setItem("mtc_isLive", String(live));
@@ -308,27 +327,6 @@ function TradeLogger() {
 
   async function logTrade(result: "win" | "loss" | "draw") {
     if (!active || limitHit) return;
-
-    // Intercept check: if about to log a LIVE trade and last 2 trades were demo losses
-    const isThisLive = strategy?.isLive !== false;
-    const lastTwoDemoLosses = (() => {
-      if (log.length < 2) return false;
-      const last1 = log[log.length - 1];
-      const last2 = log[log.length - 2];
-      return last1.is_live === false && last1.result === "loss" &&
-             last2.is_live === false && last2.result === "loss";
-    })();
-
-    if (isThisLive && lastTwoDemoLosses) {
-      setPendingLiveResult(result);
-      setShowConfirmLiveModal(true);
-      return;
-    }
-
-    await executeLogTrade(result);
-  }
-
-  async function executeLogTrade(result: "win" | "loss" | "draw") {
     const now  = new Date();
     const time = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
     
@@ -518,11 +516,28 @@ function TradeLogger() {
               <Select
                 value={currency}
                 onValueChange={(val) => {
-                  setCurrency(val);
                   const isDemo = val.startsWith("Demo");
-                  setIsLive(!isDemo);
+                  const nextLive = !isDemo;
+                  
+                  if (nextLive) {
+                    const hasLossStreak = (() => {
+                      if (log.length < 2) return false;
+                      const last1 = log[log.length - 1];
+                      const last2 = log[log.length - 2];
+                      return last1.is_live === false && last1.result === "loss" &&
+                             last2.is_live === false && last2.result === "loss";
+                    })();
+                    if (hasLossStreak) {
+                      setPendingLiveCurrency(val);
+                      setShowConfirmLiveModal(true);
+                      return;
+                    }
+                  }
+
+                  setCurrency(val);
+                  setIsLive(nextLive);
                   if (typeof window !== "undefined") {
-                    localStorage.setItem("mtc_isLive", String(!isDemo));
+                    localStorage.setItem("mtc_isLive", String(nextLive));
                   }
                 }}
               >
@@ -1007,7 +1022,7 @@ function TradeLogger() {
               exit={{ opacity: 0 }}
               onClick={() => {
                 setShowConfirmLiveModal(false);
-                setPendingLiveResult(null);
+                setPendingLiveCurrency(null);
               }}
               className="absolute inset-0 bg-background/80 backdrop-blur-md"
             />
@@ -1019,7 +1034,7 @@ function TradeLogger() {
               className="relative w-full max-w-md overflow-hidden rounded-3xl border border-[var(--blush)]/30 bg-card/95 p-6 shadow-2xl backdrop-blur-xl"
             >
               {/* Alert icon or glow */}
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--blush)]/10 text-[var(--blush)] border border-[var(--blush)]/20 animate-pulse shadow-[0_0_15px_rgba(248,113,113,0.25)]">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--blush)]/10 text-[var(--blush)] border border-[var(--blush)]/20 animate-pulse shadow-[0_0_15px_rgba(248,113,113,0.255)]">
                 <AlertTriangle className="h-6 w-6" />
               </div>
               
@@ -1041,24 +1056,30 @@ function TradeLogger() {
                   type="button"
                   onClick={() => {
                     setShowConfirmLiveModal(false);
-                    setPendingLiveResult(null);
+                    setPendingLiveCurrency(null);
                   }}
                   className="flex-1 rounded-xl bg-muted border border-border px-4 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition cursor-pointer"
                 >
-                  Cancel & Take a Break
+                  Cancel & Stay on Demo
                 </button>
                 <button
                   type="button"
-                  onClick={async () => {
-                    if (pendingLiveResult) {
-                      await executeLogTrade(pendingLiveResult);
+                  onClick={() => {
+                    if (pendingLiveCurrency) {
+                      setCurrency(pendingLiveCurrency);
+                      setIsLive(true);
+                      if (typeof window !== "undefined") {
+                        localStorage.setItem("mtc_isLive", "true");
+                      }
+                    } else {
+                      executeToggleLive(true);
                     }
                     setShowConfirmLiveModal(false);
-                    setPendingLiveResult(null);
+                    setPendingLiveCurrency(null);
                   }}
                   className="flex-1 rounded-xl bg-foreground px-4 py-2.5 text-xs font-bold text-background transition hover:opacity-90 cursor-pointer"
                 >
-                  Yes, Log Live Trade
+                  Yes, Switch to Live
                 </button>
               </div>
             </motion.div>
