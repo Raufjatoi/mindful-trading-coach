@@ -18,3 +18,18 @@ export type DbTrade = {
   is_live?: boolean;
 };
 
+export type DbTarget = {
+  id: number;
+  created_at: string;
+  title: string;
+  completed: boolean;
+};
+
+export type DbTradingNote = {
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+  content: string;
+};
+
+

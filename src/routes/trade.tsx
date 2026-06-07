@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, XCircle, AlertTriangle, Trash2 } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, Trash2, Lock } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { MotionCard } from "@/components/ui/motion-card";
 import {
@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { type TradeEntry } from "@/lib/mock";
-import { supabase } from "@/lib/supabase";
+import { supabase, type DbTarget } from "@/lib/supabase";
 import { useAuth } from "@/contexts/auth";
 import { Link } from "@tanstack/react-router";
 
@@ -61,6 +61,12 @@ function TradeLogger() {
   const [showConfirmLiveModal, setShowConfirmLiveModal] = useState(false);
   const [pendingLiveCurrency, setPendingLiveCurrency] = useState<string | null>(null);
 
+  // Targets / Discipline Lock states
+  const [targets, setTargets] = useState<DbTarget[]>([]);
+  const [loadingTargets, setLoadingTargets] = useState(true);
+  const [showDisciplineLockModal, setShowDisciplineLockModal] = useState(false);
+  const [showDisciplineBanner, setShowDisciplineBanner] = useState(false);
+
   // Dynamic overrides and Strategy Templates states
   const [nextTradeDuration, setNextTradeDuration] = useState(() => (typeof window !== "undefined" && localStorage.getItem("mtc_nextTradeDuration")) || "1 min");
   const [showNaming, setShowNaming] = useState(false);
@@ -106,9 +112,51 @@ function TradeLogger() {
     localStorage.setItem("mtc_nextTradeDuration", nextTradeDuration);
   }, [nextTradeDuration]);
 
+  // Load Targets
+  useEffect(() => {
+    if (user) {
+      if (!supabase) {
+        setLoadingTargets(false);
+        return;
+      }
+      supabase
+        .from("targets")
+        .select("*")
+        .eq("user_id", user.id)
+        .then(({ data, error }) => {
+          if (!error && data) {
+            setTargets(data as DbTarget[]);
+          }
+          setLoadingTargets(false);
+        });
+    } else {
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("mtc_guest_targets");
+        setTargets(saved ? JSON.parse(saved) : []);
+      }
+      setLoadingTargets(false);
+    }
+  }, [user]);
+
+  // Discipline Lock: Force DEMO mode on load if active targets exist
+  useEffect(() => {
+    if (loadingTargets) return;
+    const hasActive = targets.some((t) => !t.completed);
+    if (hasActive && isLive) {
+      executeToggleLive(false);
+      setShowDisciplineBanner(true);
+    }
+  }, [loadingTargets, targets, isLive]);
+
   // Sync currency based on isLive mode
   const handleToggleIsLive = (live: boolean) => {
     if (live) {
+      // Check for discipline target lock
+      const hasActive = targets.some((t) => !t.completed);
+      if (hasActive) {
+        setShowDisciplineLockModal(true);
+        return;
+      }
       // Check for demo loss streak of 2 or more trades
       const hasLossStreak = (() => {
         if (log.length < 2) return false;
@@ -399,6 +447,39 @@ function TradeLogger() {
   return (
     <AppShell title="Trade Logger" subtitle="Set your rules. Stick to them. Log every trade.">
       <div className="space-y-5">
+        {showDisciplineBanner && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="flex items-center justify-between gap-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 p-4 text-amber-500 shadow-soft"
+          >
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-amber-500/10 p-2">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold">Discipline Lock Active</h4>
+                <p className="text-xs text-amber-500/80">Switched to DEMO mode. Complete your active targets to unlock LIVE trading.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Link
+                to="/targets"
+                className="text-xs font-semibold underline hover:text-amber-400"
+              >
+                Go to Targets
+              </Link>
+              <button
+                type="button"
+                onClick={() => setShowDisciplineBanner(false)}
+                className="text-amber-500/60 hover:text-amber-500 font-bold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+          </motion.div>
+        )}
         {/* Strategy setup */}
         <MotionCard>
           {/* Strategy Templates Manager */}
@@ -520,6 +601,12 @@ function TradeLogger() {
                   const nextLive = !isDemo;
                   
                   if (nextLive) {
+                    // Check for discipline target lock
+                    const hasActive = targets.some((t) => !t.completed);
+                    if (hasActive) {
+                      setShowDisciplineLockModal(true);
+                      return;
+                    }
                     const hasLossStreak = (() => {
                       if (log.length < 2) return false;
                       const last1 = log[log.length - 1];
@@ -1081,6 +1168,69 @@ function TradeLogger() {
                 >
                   Yes, Switch to Live
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Discipline Lock Warning Modal */}
+      <AnimatePresence>
+        {showDisciplineLockModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDisciplineLockModal(false)}
+              className="absolute inset-0 bg-background/80 backdrop-blur-md"
+            />
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md overflow-hidden rounded-3xl border border-amber-500/30 bg-card/95 p-6 shadow-2xl backdrop-blur-xl"
+            >
+              {/* Lock Icon */}
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                <Lock className="h-6 w-6" />
+              </div>
+              
+              <h3 className="text-center font-display text-lg font-bold tracking-tight text-foreground">
+                Discipline Lock: LIVE Trading Locked
+              </h3>
+              
+              <div className="mt-3 text-xs text-muted-foreground leading-relaxed text-center space-y-3">
+                <p>
+                  You cannot switch to <span className="font-semibold text-emerald-500">LIVE Mode</span> because you have active trading targets that need completion first. This is a built-in discipline lock to protect your real capital.
+                </p>
+                
+                <div className="p-4 rounded-2xl bg-muted/40 border border-border/40 text-left space-y-2">
+                  <p className="font-semibold text-foreground text-xs mb-1">Uncompleted Targets:</p>
+                  <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
+                    {targets.filter(t => !t.completed).map(t => (
+                      <li key={t.id} className="text-[11px] leading-tight font-medium text-foreground/80">{t.title}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDisciplineLockModal(false)}
+                  className="flex-1 rounded-xl bg-muted border border-border px-4 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition cursor-pointer"
+                >
+                  Close
+                </button>
+                <Link
+                  to="/targets"
+                  className="flex-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white transition shadow-soft flex items-center justify-center cursor-pointer text-center"
+                >
+                  Go to Targets & Notes
+                </Link>
               </div>
             </motion.div>
           </div>

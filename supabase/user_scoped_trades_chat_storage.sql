@@ -65,3 +65,29 @@ alter table explore_trades enable row level security;
 create policy "own explore trades" on explore_trades for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- Targets
+create table targets (
+  id         bigserial primary key,
+  user_id    uuid references auth.users(id) on delete cascade not null,
+  created_at timestamptz default now(),
+  title      text not null,
+  completed  boolean default false not null
+);
+alter table targets enable row level security;
+create policy "own targets" on targets for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- Trading Notes
+create table trading_notes (
+  user_id    uuid references auth.users(id) on delete cascade primary key,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  content    text not null
+);
+alter table trading_notes enable row level security;
+create policy "own trading notes" on trading_notes for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+

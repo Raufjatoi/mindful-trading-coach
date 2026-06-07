@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TradeRouteImport } from './routes/trade'
 import { Route as TimeRouteImport } from './routes/time'
+import { Route as TargetsRouteImport } from './routes/targets'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as GuideRouteImport } from './routes/guide'
 import { Route as ExploreRouteImport } from './routes/explore'
@@ -28,6 +29,11 @@ const TradeRoute = TradeRouteImport.update({
 const TimeRoute = TimeRouteImport.update({
   id: '/time',
   path: '/time',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TargetsRoute = TargetsRouteImport.update({
+  id: '/targets',
+  path: '/targets',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewsRoute = NewsRouteImport.update({
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/explore': typeof ExploreRoute
   '/guide': typeof GuideRoute
   '/news': typeof NewsRoute
+  '/targets': typeof TargetsRoute
   '/time': typeof TimeRoute
   '/trade': typeof TradeRoute
 }
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/explore': typeof ExploreRoute
   '/guide': typeof GuideRoute
   '/news': typeof NewsRoute
+  '/targets': typeof TargetsRoute
   '/time': typeof TimeRoute
   '/trade': typeof TradeRoute
 }
@@ -105,6 +113,7 @@ export interface FileRoutesById {
   '/explore': typeof ExploreRoute
   '/guide': typeof GuideRoute
   '/news': typeof NewsRoute
+  '/targets': typeof TargetsRoute
   '/time': typeof TimeRoute
   '/trade': typeof TradeRoute
 }
@@ -119,6 +128,7 @@ export interface FileRouteTypes {
     | '/explore'
     | '/guide'
     | '/news'
+    | '/targets'
     | '/time'
     | '/trade'
   fileRoutesByTo: FileRoutesByTo
@@ -131,6 +141,7 @@ export interface FileRouteTypes {
     | '/explore'
     | '/guide'
     | '/news'
+    | '/targets'
     | '/time'
     | '/trade'
   id:
@@ -143,6 +154,7 @@ export interface FileRouteTypes {
     | '/explore'
     | '/guide'
     | '/news'
+    | '/targets'
     | '/time'
     | '/trade'
   fileRoutesById: FileRoutesById
@@ -156,6 +168,7 @@ export interface RootRouteChildren {
   ExploreRoute: typeof ExploreRoute
   GuideRoute: typeof GuideRoute
   NewsRoute: typeof NewsRoute
+  TargetsRoute: typeof TargetsRoute
   TimeRoute: typeof TimeRoute
   TradeRoute: typeof TradeRoute
 }
@@ -174,6 +187,13 @@ declare module '@tanstack/react-router' {
       path: '/time'
       fullPath: '/time'
       preLoaderRoute: typeof TimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/targets': {
+      id: '/targets'
+      path: '/targets'
+      fullPath: '/targets'
+      preLoaderRoute: typeof TargetsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/news': {
@@ -244,6 +264,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExploreRoute: ExploreRoute,
   GuideRoute: GuideRoute,
   NewsRoute: NewsRoute,
+  TargetsRoute: TargetsRoute,
   TimeRoute: TimeRoute,
   TradeRoute: TradeRoute,
 }

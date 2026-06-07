@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Clock, TrendingUp, Compass, PenTool, BookOpen, MessageCircle, LineChart, Newspaper, X } from "lucide-react";
+import { Clock, TrendingUp, Compass, PenTool, BookOpen, MessageCircle, LineChart, Newspaper, Target, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -7,6 +7,7 @@ const nav = [
   { to: "/time",      label: "Time Finder",   icon: Clock         },
   { to: "/trade",     label: "Trade Logger",  icon: TrendingUp    },
   { to: "/explore",   label: "Explore Sandbox", icon: Compass       },
+  { to: "/targets",   label: "Targets & Notes", icon: Target        },
   { to: "/canvas",    label: "Canvas",        icon: PenTool       },
   { to: "/guide",     label: "Guide",         icon: BookOpen      },
   { to: "/chat",      label: "Chat",          icon: MessageCircle },
